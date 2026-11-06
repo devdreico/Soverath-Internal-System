@@ -28,6 +28,17 @@ export interface SeedRelationship {
   provenance: Provenance;
 }
 
+export interface SeedDocument {
+  seed_key: string;
+  entity_slug: string;
+  title: string;
+  document_type: string;
+  content: string;
+  source_url: string | null;
+  source_observed_at?: string;
+  provenance: Provenance;
+}
+
 const catalog = "https://soverath.presentto.online/red";
 const observed = "public_observation" as const;
 const founder = "founder_confirmed" as const;
@@ -105,7 +116,27 @@ export const seedEntities: SeedEntity[] = [
   { slug: "paceform", name: "PACEFORM", entity_type: "concept", status: "needs_review", summary: "Tienda y contenido de equipamiento para running; su relación con otras marcas no está confirmada.", description: "Sitio de running con calzado, ropa, accesorios, recuperación, nutrición, hidratación y running nocturno, además de kits, wiki y noticias. La portada declaraba catorce productos, envío gratis y contra entrega. Enlaza Botané y Vexna Bike, pero eso no demuestra propiedad o coordinación común.", source_url: "https://paceform.presentto.online", provenance: review },
 ];
 
-export const seedDocuments = [
+export const seedDocuments: SeedDocument[] = [
+  {
+    seed_key: "founder-soverath-origin-2026-11-06",
+    entity_slug: "soverath-holding",
+    title: "Origen y estructura confirmados por Founder",
+    document_type: "strategy",
+    content: `# Origen y estructura de Soverath Holding\n\n## Origen confirmado por Founder\n\nSoverath Holding nació el 16 de julio de 2025 en Bogotá D.C., Colombia. Esta es la fecha de origen informada por Founder; no debe interpretarse por sí sola como fecha de constitución legal, registro mercantil o inicio de operaciones comerciales.\n\n## Capas coordinadoras confirmadas\n\nLa estructura coordinadora definida por Founder comprende Soverath Holding, Soverath Capital, Soverath Society, Soverath Wholesales, Soverath Loom y Soverath Logistic. Wholesales coordina Tujo Wholesales y sus canales tujo.presentto.online y wtujo.presentto.online. Logistic coordina Tujo Logistics y sus derivaciones.\n\nEstas capas describen el modelo de coordinación interno; no prueban por sí solas la existencia de seis personas jurídicas independientes. En respuestas y registros, distingue la jerarquía operativa de la forma legal hasta que Founder la documente.\n\nConfirmado en SIS por Founder el 6 de noviembre de 2026.`,
+    source_url: null,
+    source_observed_at: "2026-11-06",
+    provenance: "founder_confirmed",
+  },
+  {
+    seed_key: "public-soverath-network-briefing-2026-11-04",
+    entity_slug: "soverath-holding",
+    title: "Lectura pública de la red y reglas de interpretación",
+    document_type: "reference",
+    content: `# Soverath · síntesis de fuentes públicas\n\n## Alcance\n\nSíntesis de la captura documentada en INVENTARIO_DOMINIOS_PUBLICOS.md el 4 de noviembre de 2026. Describe lo publicado por los sitios; no valida propiedad legal, ventas, inventario, personal, resultados ni estado operativo actual.\n\n## Identidad y propósito publicados\n\nSoverath Holding se presenta como estructura coordinadora con base en Bogotá que conecta empresas, marcas, servicios y sistemas. Su propósito público es “Construir hacia el bien”: convertir ideas en operaciones ordenadas y útiles, producir mejor, distribuir con criterio y crear comunidad. Los principios declarados priorizan a las personas, el cuidado del entorno, la colaboración documentada y acuerdos comunitarios claros.\n\n## Catálogo visible\n\nLa ruta pública /red mostraba 40 registros: 6 empresas, 16 marcas, 5 servicios y 13 conceptos por validar. Es un conteo del catálogo web en esa fecha, no el total operativo de SIS. Cada entidad tiene su propia descripción, fuente y estado; consulta su ficha antes de generalizar.\n\n## Sistemas mencionados públicamente\n\n- MEHD KEY: coordinación de producción, pedidos, logística, consumo y datos, con referencia a operación alimentaria.\n- PAASP: conocimiento y soluciones pedagógicas, asociado públicamente a Aion.\n- PODC: plantilla para convertir ideas o productos en documentación operativa reproducible.\n- D-FAIC: marco descrito para funcionamiento y participación económica de Soverath Capital.\n\nLos estados son los publicados en la captura y pueden diferir del estado confirmado actualmente por Founder.\n\n## Relaciones observadas y asuntos pendientes\n\n- Miri Ads declara coordinación de Soverath Holding y desarrollo por Aeperion Systems; ciclos, precios, ubicaciones y métricas de sitio son afirmaciones públicas, no actividad interna verificada.\n- KSPR se identifica públicamente con Soverath Holding; el alcance corporativo de Community y Desktop requiere confirmación.\n- Allerihe es una empresa según Founder; su sitio público es editorial y presenta Quonceptory como academia. El catálogo mantiene Quonceptory Academy y Soverath Aion separados hasta que Founder defina la relación.\n- Uspkh Brand/Uspkh Brands, LYL/Lun y Lou y Growveer/Growveer Botanic son coincidencias nominales, no prueba de identidad legal o jerarquía.\n- Korall, Korall BS, Gatitools, SACREPS, Saniver y PACEFORM no tenían vínculo corporativo público comprobado en la revisión.\n- Precios cero, productos demo, carritos prototipo, testimonios, cifras de impacto y páginas de plantilla nunca se convierten en ventas, inventario, caja, KPI o relación confirmada.\n\n## Fuentes\n\nhttps://soverath.presentto.online/red · /mision · /impacto · /sistemas. Detalle por dominio: INVENTARIO_DOMINIOS_PUBLICOS.md, observado el 4 nov 2026.`,
+    source_url: "https://soverath.presentto.online",
+    source_observed_at: "2026-11-04",
+    provenance: "public_observation",
+  },
   {
     seed_key: "public-mission-and-values-2026-11",
     entity_slug: "soverath-holding",

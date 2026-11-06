@@ -411,7 +411,7 @@ export default function SisApp() {
       const documentsToInsert = seedDocuments.flatMap((document) => {
         const entityId = ids.get(document.entity_slug);
         if (!entityId || seedKeys.has(document.seed_key)) return [];
-        return [{ seed_key: document.seed_key, entity_id: entityId, title: document.title, document_type: document.document_type, content: document.content, source_url: document.source_url, source_observed_at: seedObservedAt, provenance: document.provenance }];
+        return [{ seed_key: document.seed_key, entity_id: entityId, title: document.title, document_type: document.document_type, content: document.content, source_url: document.source_url, source_observed_at: document.source_observed_at ?? seedObservedAt, provenance: document.provenance }];
       });
       if (documentsToInsert.length) {
         const { error } = await client.from("entity_documents").insert(documentsToInsert);

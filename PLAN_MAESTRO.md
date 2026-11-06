@@ -108,3 +108,36 @@ El chat admite Google AI Studio (`gemini-flash-lite-latest`) y OpenRouter (`open
 Las propuestas de escritura se almacenan en `private.ai_action_proposals`, vencen a los diez minutos y se consumen atómicamente una vez. Antes de editar o borrar se compara el registro actual con la instantánea mostrada en la propuesta. Esta base requiere aplicar la migración aditiva `0003_ai_action_proposals.sql` después de `0001` y `0002`.
 
 Límites de esta entrega: una página devuelve hasta 20 registros y expone `next_offset` para continuar, con tope de lectura de 10.000 filas por tabla y consulta. El resumen devuelve conteos exactos de entidades, misiones, proyectos, tareas, métricas, movimientos, recursos y conceptos AI, además de hasta 100 saldos de cuenta. El texto recuperado se comparte con el proveedor activo. El agente no lee ni analiza binarios de Storage, no restaura revisiones y todavía no incluye OCR, carga de archivos, conectores, rate limiting ni pruebas contra un proyecto Supabase real. Los modelos gratuitos pueden tener cuotas por solicitud y todos los modelos de pago requieren saldo; no se garantiza cuota ilimitada. Antes de producción: revocar claves expuestas, aplicar las tres migraciones en staging, verificar AAL2/RLS, probar propuestas caducadas/repetidas y confirmar privacidad/cuotas del proveedor.
+
+## Refinamiento final · holding en operación diaria
+
+### Objetivo
+
+SIS debe pasar de ser un mapa y un conjunto de registros a un sistema de gestión diario para Founder: preservar conocimiento institucional, priorizar trabajo entre seis capas coordinadoras, convertir decisiones en ejecución y ofrecer una lectura confiable del estado empresarial. El agente debe actuar como experto documental y analítico de Soverath, pero no sustituir aprobaciones humanas, contabilidad legal ni evidencia operativa.
+
+### Contexto ya preparado
+
+`lib/seed.ts` incorpora la fecha/lugar de origen confirmados por Founder y una síntesis transversal del inventario público con procedencia y límites de interpretación. La importación es aditiva: después del despliegue, Founder debe usar **Completar catálogo** o **Importar base** para agregar las nuevas claves a Supabase. No sobrescribe documentos existentes.
+
+### Fases
+
+1. **Contexto institucional confiable:** importar la ficha fundacional confirmada y completar una ficha por capa coordinadora. Cada una debe separar mandato, alcance, entidades relacionadas, estado, responsables, decisiones, riesgos, métricas y fuentes. Confirmar forma legal, fecha de constitución, estructura accionaria y responsables antes de registrar esos campos como hechos.
+2. **Catálogo reconciliado y conocimiento:** revisar las 40 entidades del inventario y resolver nombre canónico, tipo, estado, capa coordinadora y relación. Mantener por separado observación pública y propiedad confirmada. Añadir fuentes, fecha de consulta y vigencia; archivar sitios caídos o datos caducos como evidencia, no como realidad actual.
+3. **Ritmo de dirección diario/semanal:** diseñar una vista inicial con prioridades de hoy, tareas vencidas/bloqueadas, decisiones pendientes, próximas fechas, riesgos y cambios recientes. Añadir revisión semanal por coordinadora y bitácora de decisiones con contexto, alternativas, decisión, responsable y fecha de revisión.
+4. **Ejecución transversal:** completar dependencias de tareas, relación misión-proyecto-entidad, responsables/participantes, criterios de terminado, capacidad y bloqueos. Introducir plantillas de misión y proyecto por tipo de operación sin imponer una única metodología a todas las marcas.
+5. **Salud financiera y operativa:** definir primero el modelo con Founder. Después implementar categorías y líneas múltiples de inventario, ubicaciones/lotes, producción/recetas, adjuntos por movimiento, conciliación y reportes COP. Distinguir saldo registrado, conciliado, comprometido, proyectado y observado; SIS no reemplaza contabilidad ni facturación DIAN.
+6. **Agente experto con evidencia:** evolucionar lecturas por herramientas hacia búsqueda híbrida sobre documentos y entidades, con citas a registro, fuente y fecha. El agente debe señalar evidencia insuficiente, pedir aclaración, resumir para holding o una unidad y proponer acciones con vista previa. La ingestión de PDF/OCR/binarios será posterior, con permisos y política de privacidad revisados antes de enviar archivos a proveedores externos.
+7. **Calidad y control:** crear un conjunto de evaluación con preguntas reales sobre estructura, historia, operaciones y métricas; medir exactitud de citas, abstención ante datos faltantes, llamadas correctas a tools y seguridad de escritura. Añadir pruebas AAL0/AAL1/AAL2, RLS, caducidad/repetición de propuestas, conflicto concurrente, cuotas 429, proveedor no disponible y respaldo/restauración.
+
+### Criterios de cierre
+
+- Founder puede iniciar cada día en SIS, identificar lo que requiere atención y convertir una decisión en misión/proyecto/tarea con relación y fecha verificables.
+- Una consulta sobre holding o cualquier coordinadora devuelve datos con procedencia y fecha, diferencia observación pública de operación confirmada y se abstiene cuando no hay evidencia.
+- Cada KPI tiene definición, propietario, unidad, frecuencia, fuente, periodo y procedencia; los datos demo no aparecen como resultados reales.
+- Lectura y escritura del agente respetan AAL2/RLS; las escrituras siempre muestran propuesta, cambian un registro por confirmación y quedan auditadas.
+- La operación financiera deriva saldos de eventos y presenta estado de conciliación; los límites legales/contables están visibles.
+- Las importaciones son idempotentes, no sobrescriben texto editado por Founder y permiten revisar qué registros nuevos agregaron.
+
+### Dependencias y orden
+
+Completar primero catálogo y procedencia; después el ritmo diario y la ejecución; a continuación métricas y operación financiera; finalmente búsqueda mejorada, herramientas avanzadas y lectura de archivos. No activar ingestión de binarios ni automatización de operaciones hasta tener evaluación, límites de proveedor, respaldo, auditoría y política de datos confirmados. Cada fase requiere una revisión de Founder para convertir pendientes organizacionales en hechos.
