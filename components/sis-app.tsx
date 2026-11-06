@@ -5,7 +5,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Activity, ArrowDownToLine, ArrowRight, BarChart3, BookOpen, BrainCircuit, Building2,
   Check, ChevronDown, CircleHelp, Clock3, Database, ExternalLink, FileText,
-  Images, Layers3, LayoutDashboard, LockKeyhole, LogOut, Network, Pencil, Plus, Search,
+  Images, Layers3, LayoutDashboard, LockKeyhole, LogOut, Network, Pencil, Plus, Search, Sparkles,
   Settings, ShieldCheck, Target, Trash2, Wallet, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,11 +14,12 @@ import type { User } from "@supabase/supabase-js";
 import { getFounderId, getSupabase } from "@/lib/supabase";
 import { parseAmount } from "@/lib/money";
 import { LibraryWorkspace } from "@/components/library-workspace";
+import { AIAssistant } from "@/components/ai-assistant";
 import { SettingsPanel } from "@/components/settings-panel";
 import { catalogSeedSlugs, seedDocuments, seedEntities, seedObservedAt, seedRelationships, seedSourceUrl } from "@/lib/seed";
 import type { AuditEvent, Entity, EntityDocument, EntityRelationship, InternalAccount, Metric, MetricValue, Mission, OperationEvent, Project, Task } from "@/lib/types";
 
-type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "missions" | "metrics" | "operations" | "settings";
+type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings";
 type AppData = {
   entities: Entity[];
   relationships: EntityRelationship[];
@@ -44,6 +45,7 @@ const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "gallery", label: "Galería", icon: Images },
   { id: "knowledge", label: "Documentos", icon: BookOpen },
   { id: "ai_concepts", label: "AI Concepts", icon: BrainCircuit },
+  { id: "ai_assistant", label: "Asistente AI", icon: Sparkles },
   { id: "missions", label: "Objetivos y tareas", icon: Target },
   { id: "metrics", label: "Métricas", icon: BarChart3 },
   { id: "operations", label: "Movimientos", icon: Wallet },
@@ -55,6 +57,7 @@ const viewCopy: Record<View, { title: string; description: string }> = {
   gallery: { title: "Galería", description: "Imágenes, video y recursos visuales organizados por empresa." },
   knowledge: { title: "Documentos", description: "Estrategias, notas, procesos y archivos vinculados a entidades." },
   ai_concepts: { title: "AI Concepts", description: "Conceptos Markdown y archivos de contexto para sistemas de IA." },
+  ai_assistant: { title: "Asistente AI", description: "Consulta el contexto privado de Soverath y organiza tus siguientes decisiones." },
   missions: { title: "Objetivos y tareas", description: "Organiza objetivos, proyectos y tareas por estado y fecha." },
   metrics: { title: "Métricas", description: "Define indicadores y registra valores con fecha y fuente." },
   operations: { title: "Movimientos", description: "Registra eventos operativos en COP y consulta saldos derivados." },
@@ -764,6 +767,8 @@ export default function SisApp() {
         {notice && <div className="success-toast"><Check size={16} />{notice}</div>}
         {dataLoading && <div className="sync-line"><span className="loader-dot" />Actualizando información…</div>}
 
+        <div className="ai-assistant-host" hidden={view !== "ai_assistant"}><AIAssistant client={client} onActionComplete={() => load()} /></div>
+
         {view === "home" && <section className="view-stack">
           {data.entities.length === 0 ? <div className="welcome-panel"><div className="welcome-copy"><span className="eyebrow">PRIMER INICIO</span><h2>La red empieza<br />a tomar forma aquí.</h2><p>Importa las entidades y metodologías del catálogo público como base revisable. Las relaciones y estrategias seguirán siendo tuyas para confirmar y editar.</p><button className="button button-dark" disabled={globalBusy} onClick={importInitialData}>{globalBusy ? "Preparando base…" : "Cargar base inicial"}<ArrowRight size={16} /></button></div><div className="welcome-mark"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Image src="/soverath-logo.png" alt="" width={160} height={160} /></div></div> : <>
             <div className="hero-line"><div><span className="eyebrow">{monthShort.toLocaleUpperCase("es")}</span><h2>La red, en movimiento.</h2><p>Elige un frente y continúa donde dejaste la operación.</p></div><button className="button button-outline" onClick={importInitialData} disabled={globalBusy}><Database size={16} />{globalBusy ? "Revisando…" : "Completar catálogo"}</button></div>
@@ -877,5 +882,6 @@ export default function SisApp() {
     {valueMetricId && <Modal title="Registrar valor" onClose={() => setValueMetricId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetricValue)}><label>Valor<input name="value" type="number" step="any" required autoFocus /></label><label>Fecha<input name="recorded_on" type="date" defaultValue={localDateKey()} required /></label><label>Contexto / nota<input name="note" /></label><div className="source-note modal-source"><ShieldCheck size={14} />Este valor se marcará como confirmado por Founder.</div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setValueMetricId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Check size={15} /> Guardar valor</button></div></form></Modal>}
     {accountDialog && <Modal title="Nueva cuenta interna" onClose={() => setAccountDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveAccount)}><label>Nombre<input name="name" required placeholder="Caja principal, Bancolombia…" autoFocus /></label><label>Tipo<select name="account_type"><option value="cash">Efectivo / caja</option><option value="bank">Cuenta bancaria</option><option value="digital_wallet">Billetera digital</option><option value="receivable">Por cobrar</option><option value="payable">Por pagar</option><option value="other">Otra cuenta</option></select></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><label>Saldo inicial COP<input name="opening_balance_cop" type="number" step="any" defaultValue="0" /></label><label>Propósito<input name="purpose" placeholder="Uso o alcance de la cuenta" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setAccountDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear cuenta</button></div></form></Modal>}
     {operationDialog && <Modal title="Registrar evento operativo" onClose={() => setOperationDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveOperation)}><label>Descripción del evento<input name="title" required placeholder="Ej. Compra de insumos" autoFocus /></label><div className="form-grid"><label>Tipo<select name="event_type"><option value="sale">Venta</option><option value="purchase">Compra</option><option value="expense">Gasto</option><option value="collection">Cobro</option><option value="payment">Pago</option><option value="transfer">Transferencia</option><option value="inventory">Inventario</option><option value="production">Producción</option><option value="logistics">Logística</option><option value="adjustment">Ajuste</option></select></label><label>Fecha<input name="occurred_on" type="date" defaultValue={localDateKey()} required /></label></div><div className="form-grid"><label>Importe COP<input name="amount_cop" inputMode="decimal" placeholder="0" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="form-grid"><label>Cuenta afectada<select name="account_id"><option value="">Sin cuenta</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label>Cuenta destino (transferencia)<select name="counter_account_id"><option value="">No aplica</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div><label>Efecto en saldo<select name="account_effect"><option value="none">No modificar saldo</option><option value="increase">Aumenta la cuenta</option><option value="decrease">Reduce la cuenta</option></select></label><div className="form-grid"><label>Contraparte<input name="counterparty" /></label><label>Medio de pago<input name="payment_method" placeholder="Efectivo, banco…" /></label></div><div className="form-grid"><label>Cantidad / unidades<input name="quantity" type="number" step="any" /></label><label>Unidad<input name="unit" placeholder="unidades, kg, cajas…" /></label></div><label>Referencia<input name="reference" placeholder="Pedido, lote, soporte…" /></label><label>Detalle / contexto<textarea name="notes" rows={3} /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setOperationDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar evento</button></div></form></Modal>}
+    <button className="ai-floating-button" onClick={() => setView("ai_assistant")} aria-label="Abrir asistente AI" title="Abrir asistente AI"><Sparkles size={18} /><span>AI</span></button>
   </div>;
 }
