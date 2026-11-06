@@ -12,10 +12,12 @@ type PendingAction = {
   table: string;
   record_id?: string;
   values?: Record<string, unknown>;
+  proposal_id: string;
   label: string;
   warning?: string;
+  current_values?: Record<string, unknown>;
 };
-type ChatMessage = { role: "user" | "assistant"; content: string; pendingAction?: PendingAction; actionCancelled?: boolean };
+type ChatMessage = { role: "user" | "assistant"; content: string; pendingAction?: PendingAction; actionCancelled?: boolean; actionUnavailable?: boolean };
 
 const suggestions = [
   "¿Qué tareas están bloqueadas y de qué entidad dependen?",
@@ -91,10 +93,15 @@ export function AIAssistant({ client, onActionComplete }: { client: ReturnType<t
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ mode: "execute", confirmed: true, action }),
+        body: JSON.stringify({ mode: "execute", confirmed: true, proposal_id: action.proposal_id }),
       });
       const result = await response.json() as { reply?: string; error?: string };
-      if (!response.ok) throw new Error(result.error || "SIS no pudo completar la acción.");
+      if (!response.ok) {
+        if (response.status === 409) {
+          setMessages((current) => current.map((message, messageIndex) => messageIndex === index ? { ...message, pendingAction: undefined, actionUnavailable: true } : message));
+        }
+        throw new Error(result.error || "SIS no pudo completar la acción.");
+      }
       setMessages((current) => [...current.map((message, messageIndex) => messageIndex === index ? { ...message, pendingAction: undefined } : message), { role: "assistant", content: result.reply || "Acción completada." }]);
       await onActionComplete().catch(() => undefined);
     } catch (actionError) {
@@ -104,8 +111,28 @@ export function AIAssistant({ client, onActionComplete }: { client: ReturnType<t
     }
   }
 
-  function cancelAction(index: number) {
-    setMessages((current) => current.map((message, messageIndex) => messageIndex === index ? { ...message, pendingAction: undefined, actionCancelled: true } : message));
+  async function cancelAction(index: number, action: PendingAction) {
+    if (!client || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { data: sessionData, error: sessionError } = await client.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) throw new Error("Tu sesión expiró. Vuelve a iniciar sesión para continuar.");
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ mode: "cancel", proposal_id: action.proposal_id }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "No se pudo cancelar la propuesta.");
+      setMessages((current) => current.map((message, messageIndex) => messageIndex === index ? { ...message, pendingAction: undefined, actionCancelled: true } : message));
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : "No se pudo cancelar la propuesta.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="ai-assistant" aria-label="Asistente AI">
@@ -128,10 +155,15 @@ export function AIAssistant({ client, onActionComplete }: { client: ReturnType<t
           {message.pendingAction && <div className={`ai-action-card ${message.pendingAction.operation === "delete" ? "destructive" : ""}`}>
             <div className="ai-action-heading"><b>{message.pendingAction.label}</b><span>{message.pendingAction.operation === "delete" ? "BORRADO" : "CAMBIO PENDIENTE"}</span></div>
             {message.pendingAction.warning && <p className="ai-action-warning">{message.pendingAction.warning}</p>}
-            {message.pendingAction.values && <details className="ai-action-details"><summary>Revisar campos</summary><dl>{Object.entries(message.pendingAction.values).map(([field, value]) => <div key={field}><dt>{field}</dt><dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}</dl></details>}
-            <div className="ai-action-buttons"><button className={message.pendingAction.operation === "delete" ? "button button-danger" : "button button-dark"} disabled={busy} onClick={() => void confirmAction(index, message.pendingAction!)}><Check size={14} /> Confirmar y ejecutar</button><button className="button button-outline" disabled={busy} onClick={() => cancelAction(index)}>Cancelar</button></div>
+            <span className="ai-action-expiry">Propuesta temporal · vence en 10 min</span>
+            {(message.pendingAction.values || message.pendingAction.current_values) && <details className="ai-action-details"><summary>Revisar cambios</summary><dl>
+              {Object.entries(message.pendingAction.current_values ?? {}).map(([field, value]) => <div key={`current-${field}`}><dt>{field} · actual</dt><dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}
+              {Object.entries(message.pendingAction.values ?? {}).map(([field, value]) => <div key={`proposed-${field}`}><dt>{field} · propuesto</dt><dd>{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}
+            </dl></details>}
+            <div className="ai-action-buttons"><button className={message.pendingAction.operation === "delete" ? "button button-danger" : "button button-dark"} disabled={busy} onClick={() => void confirmAction(index, message.pendingAction!)}><Check size={14} /> {message.pendingAction.operation === "delete" ? "Confirmar borrado" : "Confirmar y ejecutar"}</button><button className="button button-outline" disabled={busy} onClick={() => void cancelAction(index, message.pendingAction!)}>Cancelar</button></div>
           </div>}
           {message.actionCancelled && <span className="ai-action-cancelled">Acción cancelada.</span>}
+          {message.actionUnavailable && <span className="ai-action-cancelled">La propuesta ya no está disponible. Pide una nueva.</span>}
         </div>
       </article>)}{busy && <article className="ai-message assistant"><span className="ai-message-avatar"><Bot size={16} /></span><div className="ai-thinking"><i /><i /><i /><span>Consultando el contexto de SIS…</span></div></article>}</div>}
       {error && <div className="ai-error" role="alert">{error}</div>}
