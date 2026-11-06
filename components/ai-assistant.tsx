@@ -137,7 +137,7 @@ export function AIAssistant({ client, onActionComplete }: { client: ReturnType<t
 
   return <section className="ai-assistant" aria-label="Asistente AI">
     <div className="ai-chat-topline">
-      <div className="ai-identity"><span className="ai-mark"><Sparkles size={17} /></span><span><b>Asistente SIS</b><small>Gemini · contexto privado del sistema</small></span></div>
+      <div className="ai-identity"><span className="ai-mark"><Sparkles size={17} /></span><span><b>Asistente SIS</b><small>IA · contexto privado del sistema</small></span></div>
       <button className="button button-outline" onClick={() => { setMessages([]); setError(""); setDraft(""); textareaRef.current?.focus(); }} disabled={busy}><Plus size={15} /> Nueva conversación</button>
     </div>
 
@@ -173,7 +173,7 @@ export function AIAssistant({ client, onActionComplete }: { client: ReturnType<t
     <form className="ai-composer" onSubmit={submitMessage}>
       <textarea ref={textareaRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKeyDown} placeholder="Pregunta, crea o actualiza algo en SIS…" aria-label="Mensaje para el asistente" rows={1} maxLength={5000} disabled={busy || !client} />
       <button className="ai-send" type="submit" aria-label="Enviar mensaje" title="Enviar mensaje" disabled={busy || !draft.trim() || !client}>{busy ? <span className="ai-spinner" /> : <Send size={17} />}</button>
-      <div className="ai-privacy-note"><LockKeyhole size={12} /><span>Los cambios requieren confirmación · Procesado con Google AI Studio.</span><span className="ai-char-count">{draft.length}/5000</span></div>
+      <div className="ai-privacy-note"><LockKeyhole size={12} /><span>Los cambios requieren confirmación · Procesado por el proveedor configurado.</span><span className="ai-char-count">{draft.length}/5000</span></div>
     </form>
   </section>;
 }

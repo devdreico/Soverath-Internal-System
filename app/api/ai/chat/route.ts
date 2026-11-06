@@ -29,6 +29,14 @@ type ContextSection = {
 type ReadableTable = { search: string[]; order: string };
 type GeminiPart = { text?: string; functionCall?: { name?: string; args?: unknown } };
 type GeminiContent = { role?: string; parts?: GeminiPart[] };
+type OpenRouterToolCall = { id: string; type: "function"; function: { name: string; arguments: string } };
+type OpenRouterMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: OpenRouterToolCall[];
+  tool_call_id?: string;
+};
+type OpenRouterToolCallResult = { id?: unknown; function?: { name?: unknown; arguments?: unknown } };
 
 const readableTables: Record<string, ReadableTable> = {
   entities: { search: ["name", "slug", "summary", "description", "status"], order: "updated_at" },
@@ -133,6 +141,39 @@ const actionTools = {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+
+function toOpenRouterSchema(input: unknown): Record<string, unknown> {
+  if (!isRecord(input)) return {};
+  const result: Record<string, unknown> = {};
+  const typeMap: Record<string, string> = {
+    ARRAY: "array",
+    BOOLEAN: "boolean",
+    INTEGER: "integer",
+    NUMBER: "number",
+    OBJECT: "object",
+    STRING: "string",
+  };
+  if (typeof input.type === "string" && typeMap[input.type]) {
+    result.type = input.nullable === true ? [typeMap[input.type], "null"] : typeMap[input.type];
+  }
+  if (typeof input.description === "string") result.description = input.description;
+  if (Array.isArray(input.required)) result.required = input.required.filter((item): item is string => typeof item === "string");
+  if (Array.isArray(input.enum)) result.enum = input.enum;
+  if (isRecord(input.properties)) {
+    result.properties = Object.fromEntries(Object.entries(input.properties).map(([key, value]) => [key, toOpenRouterSchema(value)]));
+  }
+  if (isRecord(input.items)) result.items = toOpenRouterSchema(input.items);
+  return result;
+}
+
+const openRouterTools = actionTools.functionDeclarations.map((declaration) => ({
+  type: "function" as const,
+  function: {
+    name: declaration.name,
+    description: declaration.description,
+    parameters: toOpenRouterSchema(declaration.parameters),
+  },
+}));
 
 function slugify(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -387,8 +428,6 @@ export async function POST(request: Request) {
     }
   }
 
-  const apiKey = process.env.GOOGLE_AI_STUDIO_API_KEY;
-  if (!apiKey) return jsonError("Falta configurar GOOGLE_AI_STUDIO_API_KEY en el entorno del servidor.", 503);
   if (!Array.isArray(payload.messages) || payload.messages.length < 1 || payload.messages.length > 12) {
     return jsonError("Envía entre 1 y 12 mensajes recientes.", 400);
   }
@@ -401,12 +440,140 @@ export async function POST(request: Request) {
   }
   if (messages[messages.length - 1]?.role !== "user") return jsonError("El último mensaje debe ser una pregunta del usuario.", 400);
 
-  const model = process.env.GOOGLE_AI_MODEL || "gemini-flash-lite-latest";
-  if (!/^gemini-[a-zA-Z0-9._-]+$/.test(model)) return jsonError("GOOGLE_AI_MODEL no tiene un formato válido.", 503);
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const requestedProvider = process.env.AI_PROVIDER?.trim().toLowerCase();
+  if (requestedProvider && requestedProvider !== "openrouter" && requestedProvider !== "google") {
+    return jsonError("AI_PROVIDER debe ser openrouter o google.", 503);
+  }
+  const provider = requestedProvider || (process.env.OPENROUTER_API_KEY ? "openrouter" : "google");
+  const apiKey = provider === "openrouter" ? process.env.OPENROUTER_API_KEY : process.env.GOOGLE_AI_STUDIO_API_KEY;
+  if (!apiKey) {
+    return jsonError(provider === "openrouter"
+      ? "Falta configurar OPENROUTER_API_KEY como variable privada del servidor."
+      : "Falta configurar GOOGLE_AI_STUDIO_API_KEY como variable privada del servidor.", 503);
+  }
+  const model = provider === "openrouter"
+    ? process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free"
+    : process.env.GOOGLE_AI_MODEL || "gemini-flash-lite-latest";
+  if (provider === "openrouter" ? !/^[a-zA-Z0-9._/-]+(?::[a-zA-Z0-9._-]+)?$/.test(model) : !/^gemini-[a-zA-Z0-9._-]+$/.test(model)) {
+    return jsonError(provider === "openrouter" ? "OPENROUTER_MODEL no tiene un formato válido." : "GOOGLE_AI_MODEL no tiene un formato válido.", 503);
+  }
+  const endpoint = provider === "openrouter"
+    ? "https://openrouter.ai/api/v1/chat/completions"
+    : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const contents: { role: string; parts: unknown[] }[] = messages.map(({ role, content }) => ({ role: role === "assistant" ? "model" : "user", parts: [{ text: content }] }));
+  const openRouterMessages: OpenRouterMessage[] = [
+    { role: "system", content: makeSystemInstruction() },
+    ...messages.map(({ role, content }) => ({ role, content })),
+  ];
 
   for (let step = 0; step < 5; step += 1) {
+    if (provider === "openrouter") {
+      let response: Response;
+      try {
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+            "HTTP-Referer": "https://ss.presentto.online",
+            "X-Title": "Soverath Internal System",
+          },
+          cache: "no-store",
+          signal: AbortSignal.timeout(45_000),
+          body: JSON.stringify({
+            model,
+            messages: openRouterMessages,
+            tools: openRouterTools,
+            tool_choice: "auto",
+            parallel_tool_calls: false,
+            temperature: 0.4,
+            max_tokens: 2048,
+          }),
+        });
+      } catch {
+        return jsonError("OpenRouter no respondió a tiempo. Inténtalo de nuevo.", 504);
+      }
+
+      if (!response.ok) {
+        let providerError: { error?: { code?: unknown; message?: unknown } } = {};
+        try {
+          providerError = await response.json() as typeof providerError;
+        } catch {
+          // Keep the provider response body out of user-visible errors.
+        }
+        const code = typeof providerError.error?.code === "string" && /^[A-Z0-9_]{2,64}$/.test(providerError.error.code)
+          ? providerError.error.code
+          : typeof providerError.error?.code === "number" ? `HTTP_${providerError.error.code}` : `HTTP_${response.status}`;
+        const hint = response.status === 401
+          ? "OpenRouter rechazó la clave. Verifica OPENROUTER_API_KEY en Production."
+          : response.status === 403
+            ? "OpenRouter denegó el modelo o el acceso de la cuenta. Verifica el acceso a Gemma y la política del proveedor."
+            : response.status === 404
+              ? "El modelo configurado no está disponible en OpenRouter. Verifica OPENROUTER_MODEL."
+              : response.status === 429
+                ? "Se alcanzó el límite gratuito o la cuota de OpenRouter. Espera o selecciona otro modelo/proveedor."
+                : "Revisa la solicitud y el modelo configurado en OpenRouter.";
+        return jsonError(`OpenRouter respondió HTTP ${response.status} (${code}). ${hint}`, 502);
+      }
+
+      let result: { choices?: { message?: { content?: unknown; tool_calls?: OpenRouterToolCallResult[] | null } }[] };
+      try {
+        result = await response.json() as typeof result;
+      } catch {
+        return jsonError("OpenRouter devolvió una respuesta inválida.", 502);
+      }
+      const assistantMessage = result.choices?.[0]?.message;
+      const toolCalls = assistantMessage?.tool_calls ?? [];
+      if (toolCalls.length > 1) return jsonError("El asistente preparó varias operaciones a la vez; pide una acción a la vez.", 502);
+
+      if (toolCalls.length === 0) {
+        const reply = typeof assistantMessage?.content === "string" ? assistantMessage.content.trim() : "";
+        if (!reply) return jsonError("OpenRouter devolvió una respuesta vacía. Inténtalo de nuevo.", 502);
+        return NextResponse.json({ reply }, { headers: { "Cache-Control": "no-store" } });
+      }
+
+      const call = toolCalls[0];
+      const name = call.function?.name;
+      const rawArguments = call.function?.arguments;
+      if (typeof name !== "string" || typeof rawArguments !== "string") {
+        return jsonError("Gemma devolvió una llamada a herramienta no válida.", 502);
+      }
+      let args: unknown;
+      try {
+        args = JSON.parse(rawArguments) as unknown;
+      } catch {
+        return jsonError("Gemma devolvió argumentos de herramienta no válidos.", 502);
+      }
+      if (!isRecord(args)) return jsonError("Gemma devolvió argumentos de herramienta no válidos.", 502);
+
+      if (name === "write_sis_record") {
+        const pendingAction = await prepareAction(supabase, args);
+        if (!pendingAction) return jsonError("No se pudo guardar o validar la propuesta. Verifica que la migración 0003 esté aplicada.", 502);
+        const reply = typeof assistantMessage?.content === "string" ? assistantMessage.content.trim() : "";
+        return NextResponse.json({
+          reply: reply || "Preparé una operación para SIS. Revísala y confírmala antes de ejecutarla.",
+          pendingAction,
+        }, { headers: { "Cache-Control": "no-store" } });
+      }
+
+      let toolResult: unknown;
+      try {
+        if (name === "read_sis_data") toolResult = await readSisData(supabase, args);
+        else if (name === "get_sis_overview") toolResult = await getSisOverview(supabase);
+        else return jsonError("Gemma solicitó una herramienta desconocida.", 502);
+      } catch {
+        toolResult = { error: "No se pudo consultar esos datos con la sesión actual o la tabla todavía no está disponible." };
+      }
+      const callId = typeof call.id === "string" && call.id ? call.id : `sis-tool-${step}`;
+      openRouterMessages.push({
+        role: "assistant",
+        content: typeof assistantMessage?.content === "string" ? assistantMessage.content : null,
+        tool_calls: [{ id: callId, type: "function", function: { name, arguments: rawArguments } }],
+      });
+      openRouterMessages.push({ role: "tool", tool_call_id: callId, content: JSON.stringify(toolResult) });
+      continue;
+    }
+
     let googleResponse: Response;
     try {
       googleResponse = await fetch(endpoint, {
