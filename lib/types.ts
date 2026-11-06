@@ -112,11 +112,53 @@ export interface Resource {
   id: string;
   entity_id: string | null;
   document_id: string | null;
+  project_id: string | null;
+  folder_id: string | null;
+  ai_concept_id: string | null;
+  area: "gallery" | "documents" | "ai_concepts";
+  category: string;
   name: string;
   mime_type: string;
   byte_size: number;
   storage_path: string;
+  caption: string;
+  alt_text: string;
+  processing_status: "ready" | "pending" | "failed";
+  width_px: number | null;
+  height_px: number | null;
+  duration_ms: number | null;
+  checksum_sha256: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export type LibraryArea = "gallery" | "documents" | "ai_concepts";
+
+export interface ResourceFolder {
+  id: string;
+  entity_id: string;
+  project_id: string | null;
+  area: LibraryArea;
+  parent_folder_id: string | null;
+  name: string;
+  category: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AiConcept {
+  id: string;
+  entity_id: string;
+  project_id: string | null;
+  title: string;
+  slug: string;
+  content_md: string;
+  tags: string[];
+  status: "draft" | "approved" | "archived";
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface EntityRelationship {

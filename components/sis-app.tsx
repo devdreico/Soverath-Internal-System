@@ -3,19 +3,22 @@
 import Image from "next/image";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  Activity, ArrowDownToLine, ArrowRight, BarChart3, BookOpen, Building2,
+  Activity, ArrowDownToLine, ArrowRight, BarChart3, BookOpen, BrainCircuit, Building2,
   Check, ChevronDown, CircleHelp, Clock3, Database, ExternalLink, FileText,
-  Layers3, LayoutDashboard, LockKeyhole, LogOut, Network, Pencil, Plus, Search,
-  ShieldCheck, Target, Trash2, Upload, Wallet, X,
+  Images, Layers3, LayoutDashboard, LockKeyhole, LogOut, Network, Pencil, Plus, Search,
+  Settings, ShieldCheck, Target, Trash2, Wallet, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getFounderId, getSupabase } from "@/lib/supabase";
+import { parseAmount } from "@/lib/money";
+import { LibraryWorkspace } from "@/components/library-workspace";
+import { SettingsPanel } from "@/components/settings-panel";
 import { catalogSeedSlugs, seedDocuments, seedEntities, seedObservedAt, seedRelationships, seedSourceUrl } from "@/lib/seed";
-import type { AuditEvent, Entity, EntityDocument, EntityRelationship, InternalAccount, Metric, MetricValue, Mission, OperationEvent, Project, Resource, Task } from "@/lib/types";
+import type { AuditEvent, Entity, EntityDocument, EntityRelationship, InternalAccount, Metric, MetricValue, Mission, OperationEvent, Project, Task } from "@/lib/types";
 
-type View = "home" | "network" | "knowledge" | "missions" | "metrics" | "operations";
+type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "missions" | "metrics" | "operations" | "settings";
 type AppData = {
   entities: Entity[];
   relationships: EntityRelationship[];
@@ -28,29 +31,34 @@ type AppData = {
   accounts: InternalAccount[];
   accountBalances: { id: string; balance_cop: number }[];
   operations: OperationEvent[];
-  resources: Resource[];
   auditEvents: AuditEvent[];
 };
 type MfaFlow =
   | { kind: "challenge"; factorId: string; challengeId: string }
   | { kind: "enroll"; factorId: string; uri: string; secret: string };
 
-const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], resources: [], auditEvents: [] };
+const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [] };
 const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "home", label: "Inicio", icon: LayoutDashboard },
   { id: "network", label: "Entidades", icon: Network },
+  { id: "gallery", label: "Galería", icon: Images },
   { id: "knowledge", label: "Documentos", icon: BookOpen },
+  { id: "ai_concepts", label: "AI Concepts", icon: BrainCircuit },
   { id: "missions", label: "Objetivos y tareas", icon: Target },
   { id: "metrics", label: "Métricas", icon: BarChart3 },
   { id: "operations", label: "Movimientos", icon: Wallet },
+  { id: "settings", label: "Configuración", icon: Settings },
 ];
 const viewCopy: Record<View, { title: string; description: string }> = {
   home: { title: "Resumen", description: "Entidades, tareas pendientes, objetivos activos y movimientos del mes." },
   network: { title: "Entidades", description: "Empresas, marcas, servicios y sistemas con sus relaciones y fuentes." },
+  gallery: { title: "Galería", description: "Imágenes, video y recursos visuales organizados por empresa." },
   knowledge: { title: "Documentos", description: "Estrategias, notas, procesos y archivos vinculados a entidades." },
+  ai_concepts: { title: "AI Concepts", description: "Conceptos Markdown y archivos de contexto para sistemas de IA." },
   missions: { title: "Objetivos y tareas", description: "Organiza objetivos, proyectos y tareas por estado y fecha." },
   metrics: { title: "Métricas", description: "Define indicadores y registra valores con fecha y fuente." },
   operations: { title: "Movimientos", description: "Registra eventos operativos en COP y consulta saldos derivados." },
+  settings: { title: "Configuración", description: "Preferencias de presentación, cuenta y respaldo de datos." },
 };
 
 function slugify(value: string) {
@@ -62,13 +70,20 @@ function formatDate(value?: string | null) {
   return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium" }).format(new Date(`${value.slice(0, 10)}T12:00:00`));
 }
 
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-CO", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
 function formatCOP(value?: number | null) {
   if (value == null) return "—";
-  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 2 }).format(value);
 }
 
 function operationSubline(operation: OperationEvent) {
@@ -103,7 +118,7 @@ function cacheDocumentDraft(id: string | null, title: string, content: string) {
 }
 
 async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppData> {
-  const [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, resources, auditEvents] = await Promise.all([
+  const [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents] = await Promise.all([
     client.from("entities").select("*").order("name"),
     client.from("entity_relationships").select("*").order("created_at"),
     client.from("entity_documents").select("*").order("updated_at", { ascending: false }),
@@ -115,10 +130,9 @@ async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppD
     client.from("internal_accounts").select("*").order("name"),
     client.from("account_balances").select("id,balance_cop"),
     client.from("operation_events").select("*").order("occurred_on", { ascending: false }).limit(1000),
-    client.from("resources").select("*").order("created_at", { ascending: false }),
     client.from("audit_events").select("*").order("created_at", { ascending: false }).limit(30),
   ]);
-  const firstError = [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, resources, auditEvents].find((item) => item.error)?.error;
+  const firstError = [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents].find((item) => item.error)?.error;
   if (firstError) throw firstError;
   return {
     entities: (entities.data ?? []) as Entity[],
@@ -132,7 +146,6 @@ async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppD
     accounts: (accounts.data ?? []) as InternalAccount[],
     accountBalances: (accountBalances.data ?? []) as { id: string; balance_cop: number }[],
     operations: (operations.data ?? []) as OperationEvent[],
-    resources: (resources.data ?? []) as Resource[],
     auditEvents: (auditEvents.data ?? []) as AuditEvent[],
   };
 }
@@ -466,41 +479,6 @@ export default function SisApp() {
     return () => { if (docSaveTimer.current) clearTimeout(docSaveTimer.current); };
   }, [client, mode, selectedDoc, docTitle, docContent]);
 
-  async function uploadFile(file: File) {
-    if (!client || !user) return;
-    const cleanName = file.name.replace(/[^\p{L}\p{N}._-]+/gu, "-");
-    const path = `${user.id}/${crypto.randomUUID()}-${cleanName}`;
-    setGlobalBusy(true);
-    try {
-      const { error: uploadError } = await client.storage.from("sis-private").upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false });
-      if (uploadError) throw uploadError;
-      const { error } = await client.from("resources").insert({ entity_id: selectedEntityId ?? selectedDoc?.entity_id ?? null, document_id: docId, name: file.name, mime_type: file.type || "application/octet-stream", byte_size: file.size, storage_path: path });
-      if (error) { await client.storage.from("sis-private").remove([path]); throw error; }
-      await load(client); setNotice("Archivo guardado en el espacio privado.");
-    } catch (error) { setDataError(error instanceof Error ? error.message : "No se pudo guardar el archivo."); }
-    finally { setGlobalBusy(false); }
-  }
-
-  async function downloadResource(resource: Resource) {
-    if (!client) return;
-    const { data: signed, error } = await client.storage.from("sis-private").createSignedUrl(resource.storage_path, 60, { download: resource.name });
-    if (error) { setDataError(error.message); return; }
-    const anchor = window.document.createElement("a");
-    anchor.href = signed.signedUrl;
-    anchor.download = resource.name;
-    anchor.rel = "noreferrer";
-    anchor.click();
-  }
-
-  async function removeResource(resource: Resource) {
-    if (!client || !window.confirm(`¿Borrar permanentemente el archivo “${resource.name}”?`)) return;
-    const { error: storageError } = await client.storage.from("sis-private").remove([resource.storage_path]);
-    if (storageError) { setDataError(storageError.message); return; }
-    const { error } = await client.from("resources").delete().eq("id", resource.id);
-    if (error) { setDataError(error.message); return; }
-    await load(client); setNotice("Archivo borrado.");
-  }
-
   async function openHistory(entity: Entity) {
     setSelectedEntityId(entity.id);
     if (!client) return;
@@ -583,10 +561,10 @@ export default function SisApp() {
   async function saveOperation(form: HTMLFormElement) {
     if (!client) return;
     const fields = new FormData(form);
+    const amount = parseAmount(fields.get("amount_cop"));
     if (fields.get("event_type") === "transfer" && (!fields.get("account_id") || !fields.get("counter_account_id") || fields.get("account_id") === fields.get("counter_account_id"))) throw new Error("Una transferencia requiere dos cuentas distintas.");
-    const rawAmount = String(fields.get("amount_cop") ?? "").replace(/[.\s]/g, "").replace(",", ".");
-    if (fields.get("event_type") === "transfer" && Number(rawAmount) <= 0) throw new Error("Una transferencia requiere un importe mayor que cero.");
-    const { error } = await client.from("operation_events").insert({ event_type: fields.get("event_type"), title: fields.get("title"), occurred_on: fields.get("occurred_on"), amount_cop: rawAmount ? Number(rawAmount) : null, entity_id: fields.get("entity_id") || null, account_id: fields.get("account_id") || null, counter_account_id: fields.get("counter_account_id") || null, account_effect: fields.get("account_effect") || "none", details: { counterparty: fields.get("counterparty"), quantity: fields.get("quantity"), unit: fields.get("unit"), reference: fields.get("reference"), payment_method: fields.get("payment_method") }, notes: fields.get("notes") });
+    if (fields.get("event_type") === "transfer" && (amount == null || amount <= 0)) throw new Error("Una transferencia requiere un importe mayor que cero.");
+    const { error } = await client.from("operation_events").insert({ event_type: fields.get("event_type"), title: fields.get("title"), occurred_on: fields.get("occurred_on"), amount_cop: amount, entity_id: fields.get("entity_id") || null, account_id: fields.get("account_id") || null, counter_account_id: fields.get("counter_account_id") || null, account_effect: fields.get("account_effect") || "none", details: { counterparty: fields.get("counterparty"), quantity: fields.get("quantity"), unit: fields.get("unit"), reference: fields.get("reference"), payment_method: fields.get("payment_method") }, notes: fields.get("notes") });
     if (error) throw error;
     setOperationDialog(false); await load(client); setNotice("Evento operativo guardado.");
   }
@@ -598,9 +576,9 @@ export default function SisApp() {
     for (const key of ["entity_id", "document_id", "mission_id", "project_id", "account_id", "counter_account_id", "target_date", "due_date"]) if (payload[key] === "") payload[key] = null;
     if (editRecord.table === "operation_events") {
       if (payload.event_type === "transfer" && (!payload.account_id || !payload.counter_account_id || payload.account_id === payload.counter_account_id)) throw new Error("Una transferencia requiere dos cuentas distintas.");
-      const rawAmount = String(fields.get("amount_cop") ?? "").replace(/[.\s]/g, "").replace(",", ".");
-      if (payload.event_type === "transfer" && Number(rawAmount) <= 0) throw new Error("Una transferencia requiere un importe mayor que cero.");
-      payload.amount_cop = rawAmount ? Number(rawAmount) : null;
+      const amount = parseAmount(fields.get("amount_cop"));
+      if (payload.event_type === "transfer" && (amount == null || amount <= 0)) throw new Error("Una transferencia requiere un importe mayor que cero.");
+      payload.amount_cop = amount;
       payload.details = { counterparty: fields.get("counterparty"), quantity: fields.get("quantity"), unit: fields.get("unit"), reference: fields.get("reference"), payment_method: fields.get("payment_method") };
     }
     if (editRecord.table === "metrics") payload.target_value = payload.target_value === "" ? null : Number(payload.target_value);
@@ -663,7 +641,8 @@ export default function SisApp() {
         ["entities", "name"], ["entity_relationships", "created_at"], ["entity_documents", "updated_at"],
         ["missions", "created_at"], ["projects", "created_at"], ["tasks", "created_at"],
         ["metrics", "name"], ["metric_values", "recorded_on"], ["internal_accounts", "name"],
-        ["operation_events", "occurred_on"], ["resources", "created_at"], ["record_revisions", "created_at"], ["audit_events", "created_at"],
+        ["operation_events", "occurred_on"], ["resource_folders", "created_at"], ["resources", "created_at"],
+        ["ai_concepts", "updated_at"], ["ai_concept_revisions", "created_at"], ["record_revisions", "created_at"], ["audit_events", "created_at"],
       ];
       const exported = await Promise.all(tables.map(async ([table, orderBy]) => [table, await fetchEntireTable(client, table, orderBy)] as const));
       const payload = { schema_version: 1, exported_at: new Date().toISOString(), workspace: "Soverath Internal System", owner: "Andrei / Founder", data: Object.fromEntries(exported) };
@@ -671,9 +650,9 @@ export default function SisApp() {
       const url = URL.createObjectURL(blob);
       const anchor = window.document.createElement("a");
       anchor.href = url;
-      anchor.download = `sis-respaldo-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.download = `sis-respaldo-${localDateKey()}.json`;
       anchor.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       setNotice("Respaldo JSON descargado. Los archivos binarios se descargan desde Conocimiento.");
     } catch (error) { setDataError(error instanceof Error ? error.message : "No se pudo generar el respaldo."); }
     finally { setGlobalBusy(false); }
@@ -722,12 +701,11 @@ export default function SisApp() {
   const currentCopy = viewCopy[view];
   const activeTasks = data.tasks.filter((task) => task.status !== "done");
   const openMissions = data.missions.filter((mission) => mission.status === "active" || mission.status === "planned");
-  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthKey = localDateKey().slice(0, 7);
   const monthOperations = data.operations.filter((operation) => operation.occurred_on?.startsWith(monthKey));
   const monthAmount = monthOperations.reduce((sum, operation) => sum + (Number(operation.amount_cop) || 0), 0);
   const accountBalance = (account: InternalAccount) => data.accountBalances.find((balance) => balance.id === account.id)?.balance_cop ?? Number(account.opening_balance_cop) ?? 0;
   const filteredDocuments = data.documents.filter((document) => !query.trim() || `${document.title} ${document.content}`.toLocaleLowerCase("es").includes(query.toLocaleLowerCase("es")));
-  const visibleResources = data.resources.filter((resource) => !docId || resource.document_id === docId || resource.entity_id === selectedEntityId);
 
   function runForm(event: FormEvent<HTMLFormElement>, action: (form: HTMLFormElement) => Promise<void>) {
     event.preventDefault();
@@ -762,7 +740,7 @@ export default function SisApp() {
       <nav className="side-nav" aria-label="Navegación principal">
         {navItems.map((item, index) => {
           const Icon = item.icon;
-          return <button key={item.id} onClick={() => setView(item.id)} className={`nav-item ${view === item.id ? "active" : ""}`}>
+          return <button key={item.id} title={item.label} aria-label={item.label} onClick={() => setView(item.id)} className={`nav-item ${view === item.id ? "active" : ""}`}>
             <Icon size={18} strokeWidth={view === item.id ? 2.2 : 1.7} /><span>{item.label}</span>{index === 1 && data.entities.length > 0 && <span className="nav-count">{data.entities.length}</span>}
           </button>;
         })}
@@ -797,6 +775,8 @@ export default function SisApp() {
           <div className="source-note"><ShieldCheck size={15} /><span>Los datos importados se distinguen por su fuente y fecha. Los sitios públicos pueden contener cifras demostrativas.</span><a href="https://soverath.presentto.online" target="_blank" rel="noreferrer">Fuente pública <ExternalLink size={12} /></a></div>
         </section>}
 
+        {view === "gallery" && <LibraryWorkspace area="gallery" entities={data.entities} projects={data.projects} />}
+
         {view === "network" && <section className="view-stack">
           <div className="toolbar"><div><span className="result-count">{filteredEntities.length} registros</span><span className="toolbar-divider" /> <span className="muted">Relaciones confirmadas y observaciones públicas separadas</span></div><div className="toolbar-actions"><button className="button button-outline" disabled={globalBusy} onClick={importInitialData}><Database size={15} /> Importar base</button><button className="button button-dark" onClick={() => setEntityDialog("new")}><Plus size={16} /> Nueva entidad</button></div></div>
           {!data.entities.length ? <div className="empty-state large"><div className="empty-icon"><Network size={22} /></div><h3>Tu mapa está listo para recibir la red.</h3><p>Importa el catálogo inicial y ajusta cada relación desde su ficha.</p><button className="button button-dark" onClick={importInitialData}>Importar catálogo <ArrowRight size={15} /></button></div> : !filteredEntities.length ? <div className="empty-state large"><div className="empty-icon"><Search size={20} /></div><h3>No hay coincidencias.</h3><p>Prueba con otro nombre, descripción, estado o enlace.</p></div> : <div className="entity-grid">{filteredEntities.map((entity) => {
@@ -809,7 +789,7 @@ export default function SisApp() {
 
         {view === "knowledge" && <section className="view-stack">
           <div className="toolbar"><div><span className="result-count">{data.documents.length} textos</span><span className="toolbar-divider" /><span className="muted">Autoguardado · historial restaurable</span></div><div className="toolbar-actions"><select className="entity-select" value={selectedEntityId ?? ""} onChange={(event) => setSelectedEntityId(event.target.value || null)}><option value="">Asociar texto a entidad…</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select><button className="button button-dark" onClick={createDocument}><Plus size={16} /> Nuevo texto</button></div></div>
-          <div className="knowledge-layout"><aside className="document-list panel"><div className="list-heading"><div><span className="eyebrow">BIBLIOTECA</span><h3>Textos y estrategia</h3></div><span className="mini-count">{data.documents.length}</span></div>{filteredDocuments.length ? filteredDocuments.map((document) => <button key={document.id} className={`document-row ${docId === document.id ? "selected" : ""}`} onClick={() => chooseDocument(document)}><FileText size={16} /><span><b>{document.title}</b><small>{entityName(document.entity_id)} · {titleCase(document.document_type)}</small></span></button>) : <div className="empty-list">Aún no hay textos. Crea estrategia, notas o documentación operativa aquí.</div>}<label className="upload-button"><Upload size={15} /><span>Subir brandbook o archivo</span><input type="file" onChange={(event) => { const file = event.currentTarget.files?.[0]; if (file) void uploadFile(file); event.currentTarget.value = ""; }} /></label></aside>
+          <div className="knowledge-layout"><aside className="document-list panel"><div className="list-heading"><div><span className="eyebrow">BIBLIOTECA</span><h3>Textos y estrategia</h3></div><span className="mini-count">{data.documents.length}</span></div>{filteredDocuments.length ? filteredDocuments.map((document) => <button key={document.id} className={`document-row ${docId === document.id ? "selected" : ""}`} onClick={() => chooseDocument(document)}><FileText size={16} /><span><b>{document.title}</b><small>{entityName(document.entity_id)} · {titleCase(document.document_type)}</small></span></button>) : <div className="empty-list">Aún no hay textos. Crea estrategia, notas o documentación operativa aquí.</div>}</aside>
             <section className="document-editor panel">{selectedDoc ? <>
               <div className="editor-header"><div className="save-indicator"><span className={`save-dot ${saveStatus.includes("sin sincronizar") ? "save-error" : ""}`} />{saveStatus}</div><div className="editor-tools"><span>{titleCase(selectedDoc.provenance)}</span><button className="icon-button" onClick={() => void openDocumentHistory(selectedDoc)} title="Historial de versiones"><Clock3 size={16} /></button><button className="icon-button danger-hover" onClick={() => void deleteDocument(selectedDoc)} aria-label="Borrar texto"><Trash2 size={16} /></button></div></div>
               <input className="document-title-input" value={docTitle} onChange={(event) => { const value = event.target.value; setDocTitle(value); cacheDocumentDraft(docId, value, docContent); }} placeholder="Título del texto" />
@@ -822,8 +802,12 @@ export default function SisApp() {
               <textarea className="document-textarea" value={docContent} onChange={(event) => { const value = event.target.value; setDocContent(value); cacheDocumentDraft(docId, docTitle, value); }} placeholder="Escribe aquí. Los cambios se guardan automáticamente y cada versión queda disponible en el historial." />
               <div className="editor-footer"><span><LockKeyhole size={13} /> Contenido privado</span><span>Markdown · texto plano</span></div>
             </> : <div className="empty-editor"><div className="empty-icon"><FileText size={21} /></div><h3>El conocimiento es activo de la red.</h3><p>Guarda estrategias, conceptos, decisiones y procesos. El editor crea versiones al guardar cada cambio.</p><button className="button button-dark" onClick={createDocument}><Plus size={15} /> Crear texto</button></div>}</section></div>
-          <section className="panel resources-panel"><div className="section-heading"><div><span className="eyebrow">ARCHIVOS</span><h3>Brandbooks, imágenes y recursos</h3></div><span className="private-tag"><LockKeyhole size={13} /> Storage privado</span></div>{visibleResources.length ? <div className="resource-grid">{visibleResources.map((resource) => <div className="resource-row" key={resource.id}><div className="file-icon"><FileText size={17} /></div><span className="resource-copy"><b>{resource.name}</b><small>{entityName(resource.entity_id)} · {(resource.byte_size / 1024 / 1024).toFixed(2)} MB</small></span><button className="icon-button" onClick={() => setEditRecord({ table: "resources", record: resource })} title="Organizar"><Pencil size={14} /></button><button className="icon-button" onClick={() => void downloadResource(resource)} title="Descargar"><ArrowDownToLine size={16} /></button><button className="icon-button danger-hover" onClick={() => void removeResource(resource)} title="Borrar"><Trash2 size={15} /></button></div>)}</div> : <div className="empty-inline">Sube archivos desde esta vista. Los vínculos de descarga se generan por sesión y vencen en un minuto.</div>}</section>
+          <LibraryWorkspace area="documents" entities={data.entities} projects={data.projects} />
         </section>}
+
+        {view === "ai_concepts" && <LibraryWorkspace area="ai_concepts" entities={data.entities} projects={data.projects} />}
+
+        {view === "settings" && <SettingsPanel email={user?.email ?? ""} onSignOut={() => void signOut()} onExport={() => void exportBackup()} />}
 
         {view === "missions" && <section className="view-stack">
           <div className="toolbar"><div><span className="result-count">{data.missions.length} misiones</span><span className="toolbar-divider" /><span className="muted">{activeTasks.length} tareas por completar</span></div><button className="button button-dark" onClick={() => setMissionDialog(true)}><Plus size={16} /> Nueva misión</button></div>
@@ -890,8 +874,8 @@ export default function SisApp() {
     {taskMissionId && <Modal title="Nueva tarea" onClose={() => setTaskMissionId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveTask)}><label>Tarea<input name="title" required autoFocus /></label><label>Notas<textarea name="notes" rows={3} /></label><div className="form-grid"><label>Prioridad<select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option><option value="low">Baja</option></select></label><label>Fecha objetivo<input name="due_date" type="date" /></label></div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setTaskMissionId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear tarea</button></div></form></Modal>}
     {projectMissionId && <Modal title="Nuevo proyecto" onClose={() => setProjectMissionId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveProject)}><label>Nombre del proyecto<input name="title" required autoFocus /></label><label>Descripción breve<textarea name="summary" rows={3} /></label><label>Fecha objetivo<input name="target_date" type="date" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setProjectMissionId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear proyecto</button></div></form></Modal>}
     {metricDialog && <Modal title="Definir métrica" onClose={() => setMetricDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetric)}><label>Nombre<input name="name" required placeholder="Ej. Pedidos entregados" autoFocus /></label><label>Qué mide<textarea name="description" rows={3} /></label><div className="form-grid"><label>Unidad<input name="unit" placeholder="pedidos, COP, %…" /></label><label>Frecuencia<select name="frequency" defaultValue="weekly"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option></select></label></div><div className="form-grid"><label>Meta (opcional)<input name="target_value" type="number" step="any" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setMetricDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar métrica</button></div></form></Modal>}
-    {valueMetricId && <Modal title="Registrar valor" onClose={() => setValueMetricId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetricValue)}><label>Valor<input name="value" type="number" step="any" required autoFocus /></label><label>Fecha<input name="recorded_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label><label>Contexto / nota<input name="note" /></label><div className="source-note modal-source"><ShieldCheck size={14} />Este valor se marcará como confirmado por Founder.</div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setValueMetricId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Check size={15} /> Guardar valor</button></div></form></Modal>}
+    {valueMetricId && <Modal title="Registrar valor" onClose={() => setValueMetricId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetricValue)}><label>Valor<input name="value" type="number" step="any" required autoFocus /></label><label>Fecha<input name="recorded_on" type="date" defaultValue={localDateKey()} required /></label><label>Contexto / nota<input name="note" /></label><div className="source-note modal-source"><ShieldCheck size={14} />Este valor se marcará como confirmado por Founder.</div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setValueMetricId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Check size={15} /> Guardar valor</button></div></form></Modal>}
     {accountDialog && <Modal title="Nueva cuenta interna" onClose={() => setAccountDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveAccount)}><label>Nombre<input name="name" required placeholder="Caja principal, Bancolombia…" autoFocus /></label><label>Tipo<select name="account_type"><option value="cash">Efectivo / caja</option><option value="bank">Cuenta bancaria</option><option value="digital_wallet">Billetera digital</option><option value="receivable">Por cobrar</option><option value="payable">Por pagar</option><option value="other">Otra cuenta</option></select></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><label>Saldo inicial COP<input name="opening_balance_cop" type="number" step="any" defaultValue="0" /></label><label>Propósito<input name="purpose" placeholder="Uso o alcance de la cuenta" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setAccountDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear cuenta</button></div></form></Modal>}
-    {operationDialog && <Modal title="Registrar evento operativo" onClose={() => setOperationDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveOperation)}><label>Descripción del evento<input name="title" required placeholder="Ej. Compra de insumos" autoFocus /></label><div className="form-grid"><label>Tipo<select name="event_type"><option value="sale">Venta</option><option value="purchase">Compra</option><option value="expense">Gasto</option><option value="collection">Cobro</option><option value="payment">Pago</option><option value="transfer">Transferencia</option><option value="inventory">Inventario</option><option value="production">Producción</option><option value="logistics">Logística</option><option value="adjustment">Ajuste</option></select></label><label>Fecha<input name="occurred_on" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label></div><div className="form-grid"><label>Importe COP<input name="amount_cop" inputMode="decimal" placeholder="0" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="form-grid"><label>Cuenta afectada<select name="account_id"><option value="">Sin cuenta</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label>Cuenta destino (transferencia)<select name="counter_account_id"><option value="">No aplica</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div><label>Efecto en saldo<select name="account_effect"><option value="none">No modificar saldo</option><option value="increase">Aumenta la cuenta</option><option value="decrease">Reduce la cuenta</option></select></label><div className="form-grid"><label>Contraparte<input name="counterparty" /></label><label>Medio de pago<input name="payment_method" placeholder="Efectivo, banco…" /></label></div><div className="form-grid"><label>Cantidad / unidades<input name="quantity" type="number" step="any" /></label><label>Unidad<input name="unit" placeholder="unidades, kg, cajas…" /></label></div><label>Referencia<input name="reference" placeholder="Pedido, lote, soporte…" /></label><label>Detalle / contexto<textarea name="notes" rows={3} /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setOperationDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar evento</button></div></form></Modal>}
+    {operationDialog && <Modal title="Registrar evento operativo" onClose={() => setOperationDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveOperation)}><label>Descripción del evento<input name="title" required placeholder="Ej. Compra de insumos" autoFocus /></label><div className="form-grid"><label>Tipo<select name="event_type"><option value="sale">Venta</option><option value="purchase">Compra</option><option value="expense">Gasto</option><option value="collection">Cobro</option><option value="payment">Pago</option><option value="transfer">Transferencia</option><option value="inventory">Inventario</option><option value="production">Producción</option><option value="logistics">Logística</option><option value="adjustment">Ajuste</option></select></label><label>Fecha<input name="occurred_on" type="date" defaultValue={localDateKey()} required /></label></div><div className="form-grid"><label>Importe COP<input name="amount_cop" inputMode="decimal" placeholder="0" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="form-grid"><label>Cuenta afectada<select name="account_id"><option value="">Sin cuenta</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label>Cuenta destino (transferencia)<select name="counter_account_id"><option value="">No aplica</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div><label>Efecto en saldo<select name="account_effect"><option value="none">No modificar saldo</option><option value="increase">Aumenta la cuenta</option><option value="decrease">Reduce la cuenta</option></select></label><div className="form-grid"><label>Contraparte<input name="counterparty" /></label><label>Medio de pago<input name="payment_method" placeholder="Efectivo, banco…" /></label></div><div className="form-grid"><label>Cantidad / unidades<input name="quantity" type="number" step="any" /></label><label>Unidad<input name="unit" placeholder="unidades, kg, cajas…" /></label></div><label>Referencia<input name="reference" placeholder="Pedido, lote, soporte…" /></label><label>Detalle / contexto<textarea name="notes" rows={3} /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setOperationDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar evento</button></div></form></Modal>}
   </div>;
 }

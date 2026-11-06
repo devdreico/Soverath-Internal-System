@@ -90,3 +90,13 @@ Conflictos que SIS debe dejar visibles para revisión:
 - Relación final entre Soverath Aion, Quonceptory y Allerihe; y el estado de KSPR Community y KSPR Desktop.
 - Modelo para artículos/lotes y producción: una línea por producto, inventario por ubicación, receta, vencimiento u otro nivel que necesite cada empresa.
 - Recuperación si se pierde Authenticator. La base actual exige TOTP; antes de guardar datos reales, definir códigos de recuperación de un solo uso o un procedimiento seguro de restablecimiento en el panel Supabase bajo control exclusivo de Founder.
+
+## Extensión de bibliotecas · implementación inicial
+
+La primera implementación de bibliotecas añade Galería, Documentos, AI Concepts y Configuración al dashboard. Las bibliotecas se organizan por entidad y proyecto opcional; reutilizan `resources`, el bucket privado y RLS/AAL2. La migración aditiva `0002_file_workspaces.sql` añade carpetas, metadatos de archivo, conceptos Markdown con revisiones, asociación de adjuntos y conteos con `security_invoker`. Debe aplicarse después de `0001_sis_base.sql`; no se aplica automáticamente desde el frontend.
+
+La interfaz incluye tarjetas por entidad, navegación por carpetas, filtro por proyecto, búsqueda paginada, carga múltiple/secuencial, arrastrar y soltar en escritorio, cola con resultado por archivo, límites visibles de 50 MB, previews de imagen/video/audio/PDF/texto, links firmados, mover dentro de entidad/área, edición de metadatos, borrado confirmado, conceptos Markdown importables/exportables y restauración de revisiones. Configuración inicial permite densidad local, datos de cuenta/MFA y exportación JSON.
+
+Límites explícitos de esta etapa: TUS/progreso byte a byte, conversión HEIC/Office, thumbnails y transcodificación de video, OCR, análisis antimalware, filtros avanzados por MIME/tamaño, papelera recuperable, cross-entity moves, configuración centralizada de cuotas, sincronización entre dispositivos de preferencias y backup de binarios. Los formatos sin preview se descargan; AI Concepts es biblioteca/editor, no integración con modelos.
+
+Criterios adicionales: ejecutar ambas migraciones en staging antes de producción; verificar que recursos existentes mantengan sus paths; probar permisos anónimo/AAL1/AAL2; validar carga y limpieza ante fallo; probar import/export Markdown, movimiento de carpeta, eliminación con subcarpetas, historial/restauración y navegación táctil en móvil. Completar estos checks antes de habilitar cargas masivas o archivos reales de gran tamaño.

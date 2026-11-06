@@ -11,7 +11,7 @@ Completa estos pasos en orden. No subas `.env.local`, contraseñas ni claves sec
 1. Crea un proyecto en [Supabase](https://supabase.com/dashboard). Guarda su URL y deja que termine de aprovisionarse.
 2. En **Authentication → Providers → Email**, deja habilitado email/contraseña y desactiva los registros públicos. Crea manualmente el único usuario de SIS para Andrei / Founder desde el panel de usuarios. Confirma el correo desde el panel si Supabase lo requiere.
 3. En **Authentication → Multi-Factor Authentication**, asegúrate de permitir el autenticador TOTP y la verificación de factores. SIS solicita Google Authenticator en el primer inicio y exige `aal2` después.
-4. Abre **SQL Editor** y ejecuta una sola vez el archivo `supabase/migrations/0001_sis_base.sql` completo.
+4. Abre **SQL Editor** y ejecuta, en orden, el contenido completo de `supabase/migrations/0001_sis_base.sql` y `supabase/migrations/0002_file_workspaces.sql`. `0001` se ejecuta una sola vez en el proyecto nuevo; `0002` añade las bibliotecas y puede repetirse de forma segura.
 5. En el panel de usuarios de Supabase, copia el UUID del usuario Founder. En SQL Editor ejecuta, reemplazando el valor:
 
    ```sql
@@ -66,6 +66,19 @@ Abre `http://localhost:3000`. Para que funcione el inicio de sesión local, perm
 - Libro de operaciones interno en COP y balances calculados desde el historial de movimientos.
 - Registro de actividad y exportación de registros a JSON.
 - Carga inicial idempotente del catálogo público documentado en `INVENTARIO_DOMINIOS_PUBLICOS.md`.
+- Bibliotecas privadas de Galería, Documentos y AI Concepts por entidad, con carpetas, carga múltiple, previews compatibles y edición/importación/exportación Markdown.
+- Carpetas de Galería iniciales por entidad: Iconos, Portadas, Iconos secundarios, Especiales, Fotos reales y Galería extra.
+- Metadatos de archivo, mover dentro de la misma entidad/área, categorías, texto alternativo, revisiones de AI Concepts y ajustes de densidad de interfaz.
+
+## Bibliotecas y archivos
+
+La migración `0002_file_workspaces.sql` debe ejecutarse después de `0001_sis_base.sql`. Conserva los objetos actuales y amplía `resources` con carpetas, áreas y metadatos. Los recursos previos quedan disponibles en Documentos sin mover sus objetos de Storage.
+
+El bucket `sis-private` continúa privado y limita cada objeto a 50 MB. SIS permite JPEG/JPG, PNG, WebP, AVIF, GIF, video, audio, PDF, texto/Markdown y otros formatos como descarga; la previsualización depende del navegador y del codec. SVG y formatos no compatibles no se ejecutan como contenido activo. HEIC/HEIF y formatos Office pueden almacenarse, pero su preview requiere conversión, aún no incluida. Las cargas grandes reanudables, thumbnails de video, OCR y análisis antimalware requieren una fase de servidor/procesamiento posterior.
+
+AI Concepts guarda Markdown como texto; no conecta ni ejecuta modelos de IA. La importación crea un borrador para revisar antes de guardar. La exportación JSON de SIS incluye registros/metadatos, no binarios; conserva los archivos con una política de backup de Storage aparte.
+
+Después de aplicar `0002`, inicia un nuevo deployment de Vercel para recoger el código actualizado. Prueba primero con una entidad piloto: crear y renombrar carpeta, subir y previsualizar un archivo, moverlo, eliminarlo, importar/exportar un `.md` y restaurar una versión.
 
 El libro es para seguimiento de gestión: no emite factura electrónica DIAN ni reemplaza la contabilidad fiscal. Las integraciones externas aún no están activadas.
 
