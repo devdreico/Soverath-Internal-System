@@ -452,7 +452,7 @@ export async function POST(request: Request) {
       : "Falta configurar GOOGLE_AI_STUDIO_API_KEY como variable privada del servidor.", 503);
   }
   const model = provider === "openrouter"
-    ? process.env.OPENROUTER_MODEL || "google/gemma-4-31b-it:free"
+    ? process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b"
     : process.env.GOOGLE_AI_MODEL || "gemini-flash-lite-latest";
   if (provider === "openrouter" ? !/^[a-zA-Z0-9._/-]+(?::[a-zA-Z0-9._-]+)?$/.test(model) : !/^gemini-[a-zA-Z0-9._-]+$/.test(model)) {
     return jsonError(provider === "openrouter" ? "OPENROUTER_MODEL no tiene un formato válido." : "GOOGLE_AI_MODEL no tiene un formato válido.", 503);
