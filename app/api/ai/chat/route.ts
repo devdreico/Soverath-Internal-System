@@ -427,7 +427,7 @@ export async function POST(request: Request) {
     }
 
     if (!googleResponse.ok) {
-      let googleError: { error?: { code?: unknown; status?: unknown; message?: unknown } } = {};
+      let googleError: { error?: { code?: unknown; status?: unknown; message?: unknown; details?: { reason?: unknown }[] } } = {};
       try {
         googleError = await googleResponse.json() as typeof googleError;
       } catch {
@@ -436,13 +436,22 @@ export async function POST(request: Request) {
       const providerStatus = typeof googleError.error?.status === "string" && /^[A-Z0-9_]{2,64}$/.test(googleError.error.status)
         ? googleError.error.status
         : "";
+      const providerReasonValue = googleError.error?.details?.find((detail) => typeof detail.reason === "string")?.reason;
+      const providerReason = typeof providerReasonValue === "string" && /^[A-Z0-9_]{2,64}$/.test(providerReasonValue)
+        ? providerReasonValue
+        : "";
       const providerMessage = typeof googleError.error?.message === "string" ? googleError.error.message.toLowerCase() : "";
-      const diagnostic = providerStatus || (typeof googleError.error?.code === "number" ? `HTTP_${googleError.error.code}` : `HTTP_${googleResponse.status}`);
+      const diagnostic = [providerStatus, providerReason].filter(Boolean).join("/")
+        || (typeof googleError.error?.code === "number" ? `HTTP_${googleError.error.code}` : `HTTP_${googleResponse.status}`);
       let hint = "Revisa la configuración del modelo y la solicitud.";
       if (googleResponse.status === 429 || providerStatus === "RESOURCE_EXHAUSTED" || /quota|rate.?limit/.test(providerMessage)) {
         hint = "Revisa la cuota y los límites de solicitudes del proyecto de Google AI Studio.";
-      } else if (/api key|api_key|credential/.test(providerMessage)) {
+      } else if (providerReason === "API_KEY_INVALID" || /api key not valid|invalid api key|invalid credential/.test(providerMessage)) {
         hint = "Google rechazó la credencial. Rota y verifica GOOGLE_AI_STUDIO_API_KEY en el entorno Production.";
+      } else if (["SERVICE_DISABLED", "API_KEY_SERVICE_BLOCKED"].includes(providerReason)) {
+        hint = "Habilita Generative Language API en el proyecto de Google asociado a la clave y permite ese servicio en las restricciones de la clave.";
+      } else if (["API_KEY_HTTP_REFERRER_BLOCKED", "API_KEY_IP_ADDRESS_BLOCKED", "API_KEY_ANDROID_APP_BLOCKED", "API_KEY_IOS_APP_BLOCKED"].includes(providerReason)) {
+        hint = "La restricción de aplicación de la clave bloquea la llamada servidor a servidor. Revisa las restricciones de la clave para Vercel.";
       } else if (googleResponse.status === 401 || googleResponse.status === 403 || providerStatus === "PERMISSION_DENIED") {
         hint = "Verifica que la clave tenga acceso a Gemini API y que las restricciones del proyecto permitan llamadas desde servidor.";
       } else if (googleResponse.status === 404 || providerStatus === "NOT_FOUND") {
