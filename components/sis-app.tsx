@@ -38,19 +38,19 @@ type MfaFlow =
 const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], resources: [], auditEvents: [] };
 const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "home", label: "Inicio", icon: LayoutDashboard },
-  { id: "network", label: "Mapa de red", icon: Network },
-  { id: "knowledge", label: "Conocimiento", icon: BookOpen },
-  { id: "missions", label: "Misiones y tareas", icon: Target },
+  { id: "network", label: "Entidades", icon: Network },
+  { id: "knowledge", label: "Documentos", icon: BookOpen },
+  { id: "missions", label: "Objetivos y tareas", icon: Target },
   { id: "metrics", label: "Métricas", icon: BarChart3 },
-  { id: "operations", label: "Operación", icon: Wallet },
+  { id: "operations", label: "Movimientos", icon: Wallet },
 ];
 const viewCopy: Record<View, { title: string; description: string }> = {
-  home: { title: "Centro de mando", description: "Una vista clara de la red y de lo que requiere tu atención." },
-  network: { title: "Mapa de red", description: "Empresas, marcas, servicios, sistemas y relaciones en un mismo lugar." },
-  knowledge: { title: "Conocimiento", description: "Estrategia, textos, documentos y archivos privados de la red." },
-  missions: { title: "Misiones y tareas", description: "Convierte una dirección estratégica en trabajo concreto." },
-  metrics: { title: "Métricas", description: "Define qué observar y registra valores con fecha y procedencia." },
-  operations: { title: "Operación", description: "Registro interno de movimientos y eventos operativos en COP." },
+  home: { title: "Resumen", description: "Entidades, tareas pendientes, objetivos activos y movimientos del mes." },
+  network: { title: "Entidades", description: "Empresas, marcas, servicios y sistemas con sus relaciones y fuentes." },
+  knowledge: { title: "Documentos", description: "Estrategias, notas, procesos y archivos vinculados a entidades." },
+  missions: { title: "Objetivos y tareas", description: "Organiza objetivos, proyectos y tareas por estado y fecha." },
+  metrics: { title: "Métricas", description: "Define indicadores y registra valores con fecha y fuente." },
+  operations: { title: "Movimientos", description: "Registra eventos operativos en COP y consulta saldos derivados." },
 };
 
 function slugify(value: string) {
@@ -78,7 +78,15 @@ function operationSubline(operation: OperationEvent) {
 }
 
 function titleCase(value: string) {
-  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const labels: Record<string, string> = {
+    active: "En curso", conceptual: "Conceptual", exploration: "En exploración", launching: "En lanzamiento", needs_review: "Por revisar", needs_confirmation: "Por confirmar", paused: "En pausa", planned: "Planificada", blocked: "Bloqueada", completed: "Completada", cancelled: "Cancelada", todo: "Pendiente", doing: "En curso", done: "Completada",
+    coordinator: "Coordinación", company: "Empresa", brand: "Marca", service: "Servicio", concept: "Concepto", system: "Sistema", project: "Proyecto", channel: "Canal",
+    strategy: "Estrategia", brandbook: "Manual de marca", process: "Proceso", note: "Nota", founder_confirmed: "Confirmado por administrador", public_observation: "Observación pública", inferred: "Inferido", demo_placeholder: "Dato de demostración",
+    daily: "Diaria", weekly: "Semanal", monthly: "Mensual", quarterly: "Trimestral", annual: "Anual", cash: "Efectivo", bank: "Cuenta bancaria", digital_wallet: "Billetera digital", receivable: "Por cobrar", payable: "Por pagar", other: "Otra cuenta",
+    sale: "Venta", purchase: "Compra", expense: "Gasto", collection: "Cobro", payment: "Pago", transfer: "Transferencia", inventory: "Inventario", production: "Producción", logistics: "Logística", adjustment: "Ajuste",
+    transversal_en: "Se utiliza en", asociado_a: "Asociado a", utilizado_por: "Utilizado por", marco_de: "Marco de", coordinado_por: "Coordinado por", desarrollado_por: "Desarrollado por", declara_organizacion: "Declara como organización", presenta_como_academia: "Presenta como academia",
+  };
+  return labels[value] ?? value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function auditActionLabel(action: string) {
@@ -86,7 +94,7 @@ function auditActionLabel(action: string) {
 }
 
 function auditTypeLabel(table: string) {
-  return ({ entities: "entidad", entity_relationships: "relación", entity_documents: "texto", missions: "misión", projects: "proyecto", tasks: "tarea", metrics: "métrica", metric_values: "valor de métrica", internal_accounts: "cuenta", operation_events: "evento operativo", resources: "archivo" } as Record<string, string>)[table] ?? titleCase(table);
+  return ({ entities: "entidad", entity_relationships: "relación", entity_documents: "documento", missions: "objetivo", projects: "proyecto", tasks: "tarea", metrics: "métrica", metric_values: "valor de métrica", internal_accounts: "cuenta", operation_events: "movimiento", resources: "archivo" } as Record<string, string>)[table] ?? titleCase(table);
 }
 
 function cacheDocumentDraft(id: string | null, title: string, content: string) {
@@ -681,7 +689,11 @@ export default function SisApp() {
 
   if (mode === "login" || mode === "mfa") {
     return <main className="auth-screen">
-      <div className="auth-visual"><div className="auth-mark"><Image src="/soverath-logo.png" alt="Soverath" width={76} height={76} priority /><span>SOVERATH<br />INTERNAL SYSTEM</span></div><div className="auth-phrase"><span className="eyebrow">SIS · PRIVATE WORKSPACE</span><h1>Construir<br />hacia el bien.</h1><p>Tu red, tus decisiones, tu centro de mando.</p></div><div className="auth-bottom">BOGOTÁ · COLOMBIA <span>01 / 01</span></div></div>
+      <div className="auth-visual">
+        <div className="auth-mark"><Image src="/soverath-logo.png" alt="Soverath" width={76} height={76} priority /><span>SOVERATH<br />INTERNAL SYSTEM</span></div>
+        <div className="auth-phrase"><span className="eyebrow">SIS · ACCESO</span><h1>Acceso al sistema</h1><p>Gestión de entidades, documentos, objetivos, métricas y movimientos.</p></div>
+        <div className="auth-bottom">Sistema privado de uso interno</div>
+      </div>
       <section className="auth-panel">
         <div className="auth-mobile-mark"><Image src="/soverath-logo.png" alt="" width={42} height={42} /><span>SIS</span></div>
         <div className="auth-content">
