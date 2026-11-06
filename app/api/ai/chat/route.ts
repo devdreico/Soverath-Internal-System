@@ -427,9 +427,30 @@ export async function POST(request: Request) {
     }
 
     if (!googleResponse.ok) {
-      return jsonError(googleResponse.status === 429
-        ? "Se alcanzó el límite temporal de Google AI Studio. Espera un momento y vuelve a intentar."
-        : "Google AI Studio no pudo generar una respuesta. Revisa la API key, el modelo y la cuota del proyecto.", 502);
+      let googleError: { error?: { code?: unknown; status?: unknown; message?: unknown } } = {};
+      try {
+        googleError = await googleResponse.json() as typeof googleError;
+      } catch {
+        // Keep the provider response body out of user-visible errors.
+      }
+      const providerStatus = typeof googleError.error?.status === "string" && /^[A-Z0-9_]{2,64}$/.test(googleError.error.status)
+        ? googleError.error.status
+        : "";
+      const providerMessage = typeof googleError.error?.message === "string" ? googleError.error.message.toLowerCase() : "";
+      const diagnostic = providerStatus || (typeof googleError.error?.code === "number" ? `HTTP_${googleError.error.code}` : `HTTP_${googleResponse.status}`);
+      let hint = "Revisa la configuración del modelo y la solicitud.";
+      if (googleResponse.status === 429 || providerStatus === "RESOURCE_EXHAUSTED" || /quota|rate.?limit/.test(providerMessage)) {
+        hint = "Revisa la cuota y los límites de solicitudes del proyecto de Google AI Studio.";
+      } else if (/api key|api_key|credential/.test(providerMessage)) {
+        hint = "Google rechazó la credencial. Rota y verifica GOOGLE_AI_STUDIO_API_KEY en el entorno Production.";
+      } else if (googleResponse.status === 401 || googleResponse.status === 403 || providerStatus === "PERMISSION_DENIED") {
+        hint = "Verifica que la clave tenga acceso a Gemini API y que las restricciones del proyecto permitan llamadas desde servidor.";
+      } else if (googleResponse.status === 404 || providerStatus === "NOT_FOUND") {
+        hint = "El modelo configurado no está disponible para este proyecto. Verifica GOOGLE_AI_MODEL y la disponibilidad del modelo.";
+      } else if (googleResponse.status >= 500) {
+        hint = "Google AI Studio presenta un error temporal. Reintenta más tarde.";
+      }
+      return jsonError(`Google AI Studio respondió HTTP ${googleResponse.status} (${diagnostic}). ${hint}`, 502);
     }
 
     let result: { candidates?: { content?: GeminiContent }[] };
