@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: d503e1830194fcb85f3f67c7abb8c7be5132ac06)
 successfully downloaded text file (SHA: 617092cd1abe8d7e4980670b70a48ad4e13d5046)
 successfully downloaded text file (SHA: 335db3d9bfad55f7e00c86283f2298ecb9fdf0a9)
 :root {
@@ -769,3 +770,9 @@ input::placeholder, textarea::placeholder { color: #aaa9a4; }
 
 /* Scroll container */
 .page-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+
+/* Accessibility */
+.skip-link { position: absolute; left: -9999px; top: 0; padding: 8px 12px; background: #111; color: #fff; z-index: 100; }
+.skip-link:focus { left: 8px; top: 8px; }
+:focus-visible { outline: 2px solid #111; outline-offset: 2px; }
