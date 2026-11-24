@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 96640ad19329d9925d8d689b746ba41471f03298)
 successfully downloaded text file (SHA: 331ab798db38ab23b69b8a48407dfca2bf856817)
 successfully downloaded text file (SHA: 94101214452816a3de669de8d2c00d5dd9e2862c)
 successfully downloaded text file (SHA: 779fef57e28b93be02160f5733a62a0d9f48e77b)
@@ -49,7 +50,6 @@ type MfaFlow =
 
 const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [], roadmapNodes: [], systemIdeas: [] };
 const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "home", label: "Inicio", icon: LayoutDashboard },
   { id: "network", label: "Entidades", icon: Network },
   { id: "gallery", label: "Galería", icon: Images },
   { id: "knowledge", label: "Documentos", icon: BookOpen },
@@ -63,7 +63,6 @@ const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "settings", label: "Configuración", icon: Settings },
 ];
 const viewCopy: Record<View, { title: string; description: string }> = {
-  home: { title: "Resumen", description: "Entidades, tareas pendientes, objetivos activos y movimientos del mes." },
   network: { title: "Entidades", description: "Empresas, marcas, servicios y sistemas con sus relaciones y fuentes." },
   gallery: { title: "Galería", description: "Imágenes, video y recursos visuales organizados por empresa." },
   knowledge: { title: "Documentos", description: "Estrategias, notas, procesos y archivos vinculados a entidades." },
@@ -200,7 +199,7 @@ export default function SisApp() {
   const [code, setCode] = useState("");
   const [authError, setAuthError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>("ai_assistant");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [roadmapDialog, setRoadmapDialog] = useState(false);
   const [systemIdeaDialog, setSystemIdeaDialog] = useState(false);
