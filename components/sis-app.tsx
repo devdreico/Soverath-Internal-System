@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 331ab798db38ab23b69b8a48407dfca2bf856817)
 successfully downloaded text file (SHA: 94101214452816a3de669de8d2c00d5dd9e2862c)
 successfully downloaded text file (SHA: 779fef57e28b93be02160f5733a62a0d9f48e77b)
 successfully downloaded text file (SHA: b079e8a019e71585240d47100a8b4238dcfeab79)
@@ -630,6 +631,30 @@ export default function SisApp() {
   }
 
 
+
+  async function convertIdeaToMission(idea: AppData["systemIdeas"][number]) {
+    if (!client) return;
+    setGlobalBusy(true);
+    try {
+      const { error: missionError } = await client.from("missions").insert({
+        title: idea.title,
+        goal: idea.description ?? "",
+        success_metric: `Impacto ${idea.impact}/5 · Esfuerzo ${idea.effort}/5`,
+        status: "planned",
+        entity_id: idea.entity_id ?? null,
+      });
+      if (missionError) throw missionError;
+      const { error: ideaError } = await client.from("system_ideas").update({ status: "planned" }).eq("id", idea.id);
+      if (ideaError) throw ideaError;
+      await load(client);
+      setNotice("Idea convertida en misión.");
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : "No se pudo convertir la idea.");
+    } finally {
+      setGlobalBusy(false);
+    }
+  }
+
   async function saveSystemIdea(form: HTMLFormElement) {
     if (!client) return;
     const fields = new FormData(form);
@@ -903,6 +928,9 @@ export default function SisApp() {
                   <span>Impacto: {idea.impact}/5</span>
                   <span>Esfuerzo: {idea.effort}/5</span>
                   {idea.entity_id && <span>Entidad: {data.entities.find((e) => e.id === idea.entity_id)?.name ?? "—"}</span>}
+                </div>
+                <div className="system-idea-actions">
+                  {idea.status !== "planned" && idea.status !== "completed" && <button className="button button-outline" disabled={globalBusy} onClick={() => void convertIdeaToMission(idea)}>Convertir a misión</button>}
                 </div>
               </article>
             ))}
