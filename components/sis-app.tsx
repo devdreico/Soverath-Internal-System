@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 561b03ef113f46edd771b0f6d925b7be9e854692)
 "use client";
 
 import Image from "next/image";
@@ -19,7 +20,7 @@ import { SettingsPanel } from "@/components/settings-panel";
 import { catalogSeedSlugs, seedDocuments, seedEntities, seedObservedAt, seedRelationships, seedSourceUrl } from "@/lib/seed";
 import type { AuditEvent, Entity, EntityDocument, EntityRelationship, InternalAccount, Metric, MetricValue, Mission, OperationEvent, Project, Task } from "@/lib/types";
 
-type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings";
+type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings" | "roadmap";
 type AppData = {
   entities: Entity[];
   relationships: EntityRelationship[];
@@ -47,6 +48,7 @@ const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "ai_concepts", label: "AI Concepts", icon: BrainCircuit },
   { id: "ai_assistant", label: "Asistente AI", icon: Sparkles },
   { id: "missions", label: "Objetivos y tareas", icon: Target },
+  { id: "roadmap", label: "Roadmap", icon: Layers3 },
   { id: "metrics", label: "Métricas", icon: BarChart3 },
   { id: "operations", label: "Movimientos", icon: Wallet },
   { id: "settings", label: "Configuración", icon: Settings },
@@ -59,6 +61,7 @@ const viewCopy: Record<View, { title: string; description: string }> = {
   ai_concepts: { title: "AI Concepts", description: "Conceptos Markdown y archivos de contexto para sistemas de IA." },
   ai_assistant: { title: "Asistente AI", description: "Consulta el contexto privado de Soverath y organiza tus siguientes decisiones." },
   missions: { title: "Objetivos y tareas", description: "Organiza objetivos, proyectos y tareas por estado y fecha." },
+  roadmap: { title: "Roadmap", description: "Línea de tiempo de hitos: objetivos cumplidos y cúmulos de tareas completadas." },
   metrics: { title: "Métricas", description: "Define indicadores y registra valores con fecha y fuente." },
   operations: { title: "Movimientos", description: "Registra eventos operativos en COP y consulta saldos derivados." },
   settings: { title: "Configuración", description: "Preferencias de presentación, cuenta y respaldo de datos." },
@@ -770,6 +773,14 @@ export default function SisApp() {
         <div className="ai-assistant-host" hidden={view !== "ai_assistant"}><AIAssistant client={client} onActionComplete={() => load()} /></div>
 
         {view === "home" && <section className="view-stack">
+      <div className="home-quick-actions">
+        <button className="home-action" onClick={() => setView("network")}><Network size={20} /><span>Entidades</span></button>
+        <button className="home-action" onClick={() => setView("knowledge")}><BookOpen size={20} /><span>Documentos</span></button>
+        <button className="home-action" onClick={() => setView("gallery")}><Images size={20} /><span>Galería</span></button>
+        <button className="home-action" onClick={() => setView("missions")}><Target size={20} /><span>Objetivos</span></button>
+        <button className="home-action" onClick={() => setView("roadmap")}><Layers3 size={20} /><span>Roadmap</span></button>
+        <button className="home-action" onClick={() => setView("ai_assistant")}><Sparkles size={20} /><span>Asistente</span></button>
+      </div>
           {data.entities.length === 0 ? <div className="welcome-panel"><div className="welcome-copy"><span className="eyebrow">PRIMER INICIO</span><h2>La red empieza<br />a tomar forma aquí.</h2><p>Importa las entidades y metodologías del catálogo público como base revisable. Las relaciones y estrategias seguirán siendo tuyas para confirmar y editar.</p><button className="button button-dark" disabled={globalBusy} onClick={importInitialData}>{globalBusy ? "Preparando base…" : "Cargar base inicial"}<ArrowRight size={16} /></button></div><div className="welcome-mark"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Image src="/soverath-logo.png" alt="" width={160} height={160} /></div></div> : <>
             <div className="hero-line"><div><span className="eyebrow">{monthShort.toLocaleUpperCase("es")}</span><h2>La red, en movimiento.</h2><p>Elige un frente y continúa donde dejaste la operación.</p></div><button className="button button-outline" onClick={importInitialData} disabled={globalBusy}><Database size={16} />{globalBusy ? "Revisando…" : "Completar catálogo"}</button></div>
             <div className="stat-grid"><article className="stat-card"><span>ENTIDADES</span><strong>{data.entities.length}</strong><small>En tu espacio de trabajo</small><Building2 size={18} /></article><article className="stat-card"><span>TAREAS ABIERTAS</span><strong>{activeTasks.length}</strong><small>{data.tasks.filter((task) => task.status === "blocked").length} bloqueadas</small><Target size={18} /></article><article className="stat-card"><span>MISIONES ACTIVAS</span><strong>{openMissions.length}</strong><small>Planificadas o en curso</small><Layers3 size={18} /></article><article className="stat-card"><span>MOVIMIENTOS · {monthShort.toLocaleUpperCase("es")}</span><strong className="stat-money">{formatCOP(monthAmount)}</strong><small>{monthOperations.length} eventos registrados</small><Activity size={18} /></article></div>
@@ -781,6 +792,34 @@ export default function SisApp() {
         </section>}
 
         {view === "gallery" && <LibraryWorkspace area="gallery" entities={data.entities} projects={data.projects} />}
+
+{view === "roadmap" && <section className="view-stack">
+          <div className="section-heading"><div><span className="eyebrow">ROADMAP</span><h3>Hitos de Soverath</h3></div></div>
+          <div className="roadmap-timeline">
+            {data.missions.filter((mission) => mission.status === "completed").map((mission) => (
+              <article key={mission.id} className="roadmap-node completed">
+                <span className="roadmap-dot" />
+                <div className="roadmap-copy">
+                  <b>{mission.title}</b>
+                  <small>Objetivo cumplido · {mission.target_date ? formatDate(mission.target_date) : "Sin fecha"}</small>
+                  {mission.success_metric && <p>{mission.success_metric}</p>}
+                </div>
+              </article>
+            ))}
+            {data.tasks.filter((task) => task.status === "done").slice(0, 20).map((task) => (
+              <article key={task.id} className="roadmap-node goal">
+                <span className="roadmap-dot" />
+                <div className="roadmap-copy">
+                  <b>{task.title}</b>
+                  <small>GOAL · tarea completada</small>
+                </div>
+              </article>
+            ))}
+            {data.missions.filter((mission) => mission.status === "completed").length === 0 && data.tasks.filter((task) => task.status === "done").length === 0 && (
+              <div className="empty-state"><div className="empty-icon"><Layers3 size={20} /></div><b>Sin hitos todavía.</b><span>Completa objetivos o tareas para verlos aquí.</span></div>
+            )}
+          </div>
+        </section>}
 
         {view === "network" && <section className="view-stack">
           <div className="toolbar"><div><span className="result-count">{filteredEntities.length} registros</span><span className="toolbar-divider" /> <span className="muted">Relaciones confirmadas y observaciones públicas separadas</span></div><div className="toolbar-actions"><button className="button button-outline" disabled={globalBusy} onClick={importInitialData}><Database size={15} /> Importar base</button><button className="button button-dark" onClick={() => setEntityDialog("new")}><Plus size={16} /> Nueva entidad</button></div></div>
