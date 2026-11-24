@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: e71cc6c51aa3b3e6eb8936666b317675c326dbf1)
 successfully downloaded text file (SHA: e6c7615e4e2a0dbc1e6b9da3fc011f3364fb8349)
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
@@ -253,7 +254,7 @@ async function prepareAction(supabase: ReturnType<typeof getSupabase>, input: un
   return { ...action, proposal_id: proposalId, label, ...(warning ? { warning } : {}), ...(currentValues ? { current_values: currentValues } : {}) };
 }
 
-async function executeAction(supabase: ReturnType<typeof getSupabase>, proposalId: string) {
+async function executeAction(supabase: ReturnType<typeof getSupabase>, proposalId: string, founderId?: string) {
   const { data, error: consumeError } = await supabase.rpc("consume_ai_action_proposal", { p_id: proposalId });
   if (consumeError || !isRecord(data) || !isRecord(data.action)) throw new Error("La propuesta expiró, ya se usó o dejó de estar disponible. Pide una nueva propuesta.");
   const action = normalizeAction(data.action);
@@ -270,10 +271,12 @@ async function executeAction(supabase: ReturnType<typeof getSupabase>, proposalI
     if (action.operation === "update") {
       const { error } = await supabase.from(action.table).update(action.values ?? {}).eq("id", action.record_id);
       if (error) throw error;
+      await supabase.from("audit_events").insert({ record_table: action.table, record_id: action.record_id, action: "update", label: `IA · ${currentLabel}`, actor_id: founderId ?? null });
       return `Actualizado: ${tableLabels[action.table]} · ${currentLabel}.`;
     }
     const { error } = await supabase.from(action.table).delete().eq("id", action.record_id);
     if (error) throw error;
+    await supabase.from("audit_events").insert({ record_table: action.table, record_id: action.record_id, action: "delete", label: `IA · ${currentLabel}`, actor_id: founderId ?? null });
     return `Borrado: ${tableLabels[action.table]} · ${currentLabel}.`;
   }
 
@@ -440,7 +443,7 @@ export async function POST(request: Request) {
         await cancelAction(supabase, payload.proposal_id);
         return NextResponse.json({ reply: "Propuesta cancelada." }, { headers: { "Cache-Control": "no-store" } });
       }
-      const reply = await executeAction(supabase, payload.proposal_id);
+      const reply = await executeAction(supabase, payload.proposal_id, founderId);
       return NextResponse.json({ reply }, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
       return jsonError(error instanceof Error ? `SIS no pudo completar la acción: ${error.message}` : "SIS no pudo completar la acción.", 409);
