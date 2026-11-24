@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 565faa2b5d7762626cad0e02a88f90618c46f255)
 successfully downloaded text file (SHA: e71cc6c51aa3b3e6eb8936666b317675c326dbf1)
 successfully downloaded text file (SHA: e6c7615e4e2a0dbc1e6b9da3fc011f3364fb8349)
 import { createClient } from "@supabase/supabase-js";
@@ -102,6 +103,18 @@ const actionTools = {
         query: { type: "STRING", description: "Texto para buscar en los campos permitidos de la tabla." },
         limit: { type: "INTEGER", description: "Máximo de 20 registros por página." },
         offset: { type: "INTEGER", description: "Desplazamiento para continuar desde next_offset devuelto por la página anterior." },
+      },
+    },
+  }, {
+  }, {
+    name: "search_sis_context",
+    description: "Busca un texto en las tablas permitidas de SIS y devuelve muestras con procedencia para responder con evidencia.",
+    parameters: {
+      type: "OBJECT",
+      required: ["query"],
+      properties: {
+        query: { type: "STRING", description: "Texto a buscar en SIS." },
+        limit: { type: "INTEGER", description: "Máximo de 5 registros por tabla." },
       },
     },
   }, {
@@ -338,6 +351,36 @@ async function getSisOverview(supabase: ReturnType<typeof getSupabase>) {
   const { data: balances, error } = await supabase.from("account_balances").select("*").limit(100);
   if (error) throw error;
   return { counts: Object.fromEntries(counts), account_balances: balances ?? [], account_balances_limited: (balances?.length ?? 0) === 100 };
+}
+
+
+async function searchSisContext(supabase: ReturnType<typeof getSupabase>, input: unknown) {
+  if (!isRecord(input) || typeof input.query !== "string" || !input.query.trim()) throw new Error("Falta el texto de búsqueda.");
+  const query = input.query.trim().replace(/[%_*]/g, " ").slice(0, 120);
+  const limit = typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.min(5, Math.max(1, Math.floor(input.limit))) : 3;
+  const tables = Object.keys(readableTables);
+  const results: Record<string, unknown> = {};
+  for (const table of tables) {
+    try {
+      const definition = readableTables[table];
+      if (definition.search.length === 0) continue;
+      const matches = await Promise.all(definition.search.map((field) =>
+        supabase.from(table).select("*").ilike(field, `%${query}%`).order(definition.order, { ascending: false }).limit(limit),
+      ));
+      const rows = new Map<string, Record<string, unknown>>();
+      for (const result of matches) {
+        for (const row of ((result.data ?? []) as Record<string, unknown>[]).slice(0, limit)) {
+          if (typeof row.id !== "string" || rows.has(row.id)) continue;
+          if (rows.size >= limit) break;
+          rows.set(row.id, row);
+        }
+      }
+      if (rows.size > 0) results[table] = [...rows.values()];
+    } catch {
+      // Ignore unavailable tables in the combined search.
+    }
+  }
+  return { query, results, tables_searched: tables.length };
 }
 
 function compactRows(rows: Record<string, unknown>[], budget: number, mayHaveMore = false): ContextSection {
@@ -681,6 +724,7 @@ export async function POST(request: Request) {
     let toolResult: unknown;
     try {
       if (call.name === "read_sis_data") toolResult = await readSisData(supabase, call.args);
+      else if (call.name === "search_sis_context") toolResult = await searchSisContext(supabase, call.args);
       else if (call.name === "get_sis_overview") toolResult = await getSisOverview(supabase);
       else return jsonError("El asistente solicitó una herramienta desconocida.", 502);
     } catch {
