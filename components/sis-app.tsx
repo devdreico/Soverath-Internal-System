@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: b079e8a019e71585240d47100a8b4238dcfeab79)
 successfully downloaded text file (SHA: 35c9af35e9faaf5d23fc992b0f745aae12db1ec6)
 successfully downloaded text file (SHA: 65ee8054b9c5174ce34660ebc01fc18724c40d2b)
 successfully downloaded text file (SHA: 561b03ef113f46edd771b0f6d925b7be9e854692)
@@ -36,12 +37,13 @@ type AppData = {
   accountBalances: { id: string; balance_cop: number }[];
   operations: OperationEvent[];
   auditEvents: AuditEvent[];
+  roadmapNodes: { id: string; node_type: string; title: string; description?: string; status: string; occurred_on?: string; entity_id?: string }[];
 };
 type MfaFlow =
   | { kind: "challenge"; factorId: string; challengeId: string }
   | { kind: "enroll"; factorId: string; uri: string; secret: string };
 
-const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [] };
+const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [], roadmapNodes: [] };
 const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "home", label: "Inicio", icon: LayoutDashboard },
   { id: "network", label: "Entidades", icon: Network },
@@ -126,7 +128,7 @@ function cacheDocumentDraft(id: string | null, title: string, content: string) {
 }
 
 async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppData> {
-  const [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents] = await Promise.all([
+  const [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents, roadmapNodes] = await Promise.all([
     client.from("entities").select("*").order("name"),
     client.from("entity_relationships").select("*").order("created_at"),
     client.from("entity_documents").select("*").order("updated_at", { ascending: false }),
@@ -139,8 +141,9 @@ async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppD
     client.from("account_balances").select("id,balance_cop"),
     client.from("operation_events").select("*").order("occurred_on", { ascending: false }).limit(1000),
     client.from("audit_events").select("*").order("created_at", { ascending: false }).limit(30),
+    client.from("roadmap_nodes").select("*").order("occurred_on", { ascending: false }),
   ]);
-  const firstError = [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents].find((item) => item.error)?.error;
+  const firstError = [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents, roadmapNodes].find((item) => item.error)?.error;
   if (firstError) throw firstError;
   return {
     entities: (entities.data ?? []) as Entity[],
@@ -155,6 +158,7 @@ async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppD
     accountBalances: (accountBalances.data ?? []) as { id: string; balance_cop: number }[],
     operations: (operations.data ?? []) as OperationEvent[],
     auditEvents: (auditEvents.data ?? []) as AuditEvent[],
+    roadmapNodes: (roadmapNodes.data ?? []) as AppData["roadmapNodes"],
   };
 }
 
