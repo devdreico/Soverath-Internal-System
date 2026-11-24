@@ -377,7 +377,7 @@ export default function SisApp() {
       await client.from("entity_documents").update({ title: docTitle, content: docContent }).eq("id", selectedDoc.id);
     }
     if (client) await client.auth.signOut();
-    setUser(null); setData(emptyData); setMode("login"); setMfaFlow(null); setView("home");
+    setUser(null); setData(emptyData); setMode("login"); setMfaFlow(null); setView("ai_assistant");
   }
 
   async function importInitialData() {
