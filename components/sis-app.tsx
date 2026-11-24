@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 6baa223e4be8085a02d1819c6dd8adfec1f5b13c)
 successfully downloaded text file (SHA: d638e5279543789134aa89cb00a796f6dfc0946e)
 successfully downloaded text file (SHA: 96640ad19329d9925d8d689b746ba41471f03298)
 successfully downloaded text file (SHA: 331ab798db38ab23b69b8a48407dfca2bf856817)
@@ -826,12 +827,17 @@ export default function SisApp() {
       <div className="sidebar-rule" />
       <div className="sidebar-label">ESPACIO DE TRABAJO</div>
       <nav className="side-nav" aria-label="Navegación principal">
-        {navItems.map((item, index) => {
-          const Icon = item.icon;
-          return <button key={item.id} title={item.label} aria-label={item.label} onClick={() => { setView(item.id); setSidebarOpen(false); }} className={`nav-item ${view === item.id ? "active" : ""}`}>
-            <Icon size={18} strokeWidth={view === item.id ? 2.2 : 1.7} /><span>{item.label}</span>{index === 1 && data.entities.length > 0 && <span className="nav-count">{data.entities.length}</span>}
-          </button>;
-        })}
+        {navGroups.map((group) => (
+          <div key={group.label} className="nav-group">
+            <span className="nav-group-label">{group.label}</span>
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              return <button key={item.id} title={item.label} aria-label={item.label} onClick={() => { setView(item.id); setSidebarOpen(false); }} className={`nav-item ${view === item.id ? "active" : ""}`}>
+                <Icon size={18} strokeWidth={view === item.id ? 2.2 : 1.7} /><span>{item.label}</span>
+              </button>;
+            })}
+          </div>
+        ))}
       </nav>
       <div className="sidebar-bottom">
         <div className="private-badge"><span className="status-dot" /><span><b>Espacio privado</b><small>Founder · AAL2 activo</small></span><ShieldCheck size={16} /></div>
