@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 65ee8054b9c5174ce34660ebc01fc18724c40d2b)
 successfully downloaded text file (SHA: 561b03ef113f46edd771b0f6d925b7be9e854692)
 "use client";
 
@@ -187,6 +188,7 @@ export default function SisApp() {
   const [authError, setAuthError] = useState("");
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>("home");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [data, setData] = useState<AppData>(emptyData);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState("");
@@ -739,14 +741,15 @@ export default function SisApp() {
   const monthShort = new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric" }).format(new Date());
 
   return <div className="sis-shell">
-    <aside className="sidebar">
+    {sidebarOpen && <button className="sidebar-overlay" onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú" />}
+    <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
       <div className="brand-lockup"><Image src="/soverath-logo.png" alt="Soverath" width={42} height={42} priority /><div><strong>SOVERATH</strong><span>INTERNAL SYSTEM</span></div></div>
       <div className="sidebar-rule" />
       <div className="sidebar-label">ESPACIO DE TRABAJO</div>
       <nav className="side-nav" aria-label="Navegación principal">
         {navItems.map((item, index) => {
           const Icon = item.icon;
-          return <button key={item.id} title={item.label} aria-label={item.label} onClick={() => setView(item.id)} className={`nav-item ${view === item.id ? "active" : ""}`}>
+          return <button key={item.id} title={item.label} aria-label={item.label} onClick={() => { setView(item.id); setSidebarOpen(false); }} className={`nav-item ${view === item.id ? "active" : ""}`}>
             <Icon size={18} strokeWidth={view === item.id ? 2.2 : 1.7} /><span>{item.label}</span>{index === 1 && data.entities.length > 0 && <span className="nav-count">{data.entities.length}</span>}
           </button>;
         })}
@@ -760,6 +763,7 @@ export default function SisApp() {
 
     <main className="main-area">
       <header className="topbar">
+        <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú">☰</button>
         <div className="breadcrumb"><span>SOVERATH</span><span className="crumb-separator">/</span><b>{currentCopy.title.toLocaleUpperCase("es")}</b></div>
         <div className="topbar-actions"><label className="global-search"><Search size={16} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar en SIS" aria-label="Buscar en SIS" /><kbd>⌘ K</kbd></label><button className="top-avatar" title="Cerrar sesión" onClick={signOut}>A</button></div>
       </header>
