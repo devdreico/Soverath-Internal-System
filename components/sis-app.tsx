@@ -19,7 +19,7 @@ import { SettingsPanel } from "@/components/settings-panel";
 import { catalogSeedSlugs, seedDocuments, seedEntities, seedObservedAt, seedRelationships, seedSourceUrl } from "@/lib/seed";
 import type { AuditEvent, Entity, EntityDocument, EntityRelationship, InternalAccount, Metric, MetricValue, Mission, OperationEvent, Project, Task } from "@/lib/types";
 
-type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings" | "roadmap" | "sistemas";
+type View = "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings" | "roadmap" | "sistemas";
 type AppData = {
   entities: Entity[];
   relationships: EntityRelationship[];
@@ -41,18 +41,22 @@ type MfaFlow =
   | { kind: "enroll"; factorId: string; uri: string; secret: string };
 
 const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [], roadmapNodes: [], systemIdeas: [] };
-const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "network", label: "Entidades", icon: Network },
-  { id: "gallery", label: "Galería", icon: Images },
-  { id: "knowledge", label: "Documentos", icon: BookOpen },
-  { id: "ai_concepts", label: "AI Concepts", icon: BrainCircuit },
-  { id: "ai_assistant", label: "Asistente AI", icon: Sparkles },
-  { id: "missions", label: "Objetivos y tareas", icon: Target },
-  { id: "roadmap", label: "Roadmap", icon: Layers3 },
-  { id: "sistemas", label: "Sistemas futuros", icon: BrainCircuit },
-  { id: "metrics", label: "Métricas", icon: BarChart3 },
-  { id: "operations", label: "Movimientos", icon: Wallet },
-  { id: "settings", label: "Configuración", icon: Settings },
+const navGroups: { label: string; items: { id: View; label: string; icon: typeof LayoutDashboard }[] }[] = [
+  { label: "TOOLS", items: [
+    { id: "ai_assistant", label: "Asistente AI", icon: Sparkles },
+    { id: "ai_concepts", label: "AI Concepts", icon: BrainCircuit },
+    { id: "settings", label: "Configuración", icon: Settings },
+    { id: "metrics", label: "Métricas", icon: BarChart3 },
+    { id: "roadmap", label: "Roadmap", icon: Layers3 },
+    { id: "sistemas", label: "Sistemas futuros", icon: BrainCircuit },
+    { id: "missions", label: "Objetivos y tareas", icon: Target },
+    { id: "operations", label: "Movimientos", icon: Wallet },
+  ]},
+  { label: "STORAGE", items: [
+    { id: "network", label: "Entidades", icon: Network },
+    { id: "gallery", label: "Galería", icon: Images },
+    { id: "knowledge", label: "Documentos", icon: BookOpen },
+  ]},
 ];
 const viewCopy: Record<View, { title: string; description: string }> = {
   network: { title: "Entidades", description: "Empresas, marcas, servicios y sistemas con sus relaciones y fuentes." },
