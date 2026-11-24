@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 94101214452816a3de669de8d2c00d5dd9e2862c)
 successfully downloaded text file (SHA: 779fef57e28b93be02160f5733a62a0d9f48e77b)
 successfully downloaded text file (SHA: b079e8a019e71585240d47100a8b4238dcfeab79)
 successfully downloaded text file (SHA: 35c9af35e9faaf5d23fc992b0f745aae12db1ec6)
@@ -24,7 +25,7 @@ import { SettingsPanel } from "@/components/settings-panel";
 import { catalogSeedSlugs, seedDocuments, seedEntities, seedObservedAt, seedRelationships, seedSourceUrl } from "@/lib/seed";
 import type { AuditEvent, Entity, EntityDocument, EntityRelationship, InternalAccount, Metric, MetricValue, Mission, OperationEvent, Project, Task } from "@/lib/types";
 
-type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings" | "roadmap";
+type View = "home" | "network" | "gallery" | "knowledge" | "ai_concepts" | "ai_assistant" | "missions" | "metrics" | "operations" | "settings" | "roadmap" | "sistemas";
 type AppData = {
   entities: Entity[];
   relationships: EntityRelationship[];
@@ -39,12 +40,13 @@ type AppData = {
   operations: OperationEvent[];
   auditEvents: AuditEvent[];
   roadmapNodes: { id: string; node_type: string; title: string; description?: string; status: string; occurred_on?: string; entity_id?: string }[];
+  systemIdeas: { id: string; title: string; description?: string; idea_type: string; status: string; entity_id?: string; impact: number; effort: number }[];
 };
 type MfaFlow =
   | { kind: "challenge"; factorId: string; challengeId: string }
   | { kind: "enroll"; factorId: string; uri: string; secret: string };
 
-const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [], roadmapNodes: [] };
+const emptyData: AppData = { entities: [], relationships: [], documents: [], missions: [], projects: [], tasks: [], metrics: [], metricValues: [], accounts: [], accountBalances: [], operations: [], auditEvents: [], roadmapNodes: [], systemIdeas: [] };
 const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "home", label: "Inicio", icon: LayoutDashboard },
   { id: "network", label: "Entidades", icon: Network },
@@ -54,6 +56,7 @@ const navItems: { id: View; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "ai_assistant", label: "Asistente AI", icon: Sparkles },
   { id: "missions", label: "Objetivos y tareas", icon: Target },
   { id: "roadmap", label: "Roadmap", icon: Layers3 },
+  { id: "sistemas", label: "Sistemas futuros", icon: BrainCircuit },
   { id: "metrics", label: "Métricas", icon: BarChart3 },
   { id: "operations", label: "Movimientos", icon: Wallet },
   { id: "settings", label: "Configuración", icon: Settings },
@@ -67,6 +70,7 @@ const viewCopy: Record<View, { title: string; description: string }> = {
   ai_assistant: { title: "Asistente AI", description: "Consulta el contexto privado de Soverath y organiza tus siguientes decisiones." },
   missions: { title: "Objetivos y tareas", description: "Organiza objetivos, proyectos y tareas por estado y fecha." },
   roadmap: { title: "Roadmap", description: "Línea de tiempo de hitos: objetivos cumplidos y cúmulos de tareas completadas." },
+  sistemas: { title: "Sistemas futuros", description: "Recopilación, priorización y planeación de sistemas a futuro." },
   metrics: { title: "Métricas", description: "Define indicadores y registra valores con fecha y fuente." },
   operations: { title: "Movimientos", description: "Registra eventos operativos en COP y consulta saldos derivados." },
   settings: { title: "Configuración", description: "Preferencias de presentación, cuenta y respaldo de datos." },
@@ -129,7 +133,7 @@ function cacheDocumentDraft(id: string | null, title: string, content: string) {
 }
 
 async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppData> {
-  const [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents, roadmapNodes] = await Promise.all([
+  const [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents, roadmapNodes, systemIdeas] = await Promise.all([
     client.from("entities").select("*").order("name"),
     client.from("entity_relationships").select("*").order("created_at"),
     client.from("entity_documents").select("*").order("updated_at", { ascending: false }),
@@ -143,8 +147,9 @@ async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppD
     client.from("operation_events").select("*").order("occurred_on", { ascending: false }).limit(1000),
     client.from("audit_events").select("*").order("created_at", { ascending: false }).limit(30),
     client.from("roadmap_nodes").select("*").order("occurred_on", { ascending: false }),
+    client.from("system_ideas").select("*").order("created_at", { ascending: false }),
   ]);
-  const firstError = [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents, roadmapNodes].find((item) => item.error)?.error;
+  const firstError = [entities, relationships, documents, missions, projects, tasks, metrics, metricValues, accounts, accountBalances, operations, auditEvents, roadmapNodes, systemIdeas].find((item) => item.error)?.error;
   if (firstError) throw firstError;
   return {
     entities: (entities.data ?? []) as Entity[],
@@ -160,6 +165,7 @@ async function readAppData(client: ReturnType<typeof getSupabase>): Promise<AppD
     operations: (operations.data ?? []) as OperationEvent[],
     auditEvents: (auditEvents.data ?? []) as AuditEvent[],
     roadmapNodes: (roadmapNodes.data ?? []) as AppData["roadmapNodes"],
+    systemIdeas: (systemIdeas.data ?? []) as AppData["systemIdeas"],
   };
 }
 
@@ -196,6 +202,7 @@ export default function SisApp() {
   const [view, setView] = useState<View>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [roadmapDialog, setRoadmapDialog] = useState(false);
+  const [systemIdeaDialog, setSystemIdeaDialog] = useState(false);
   const [data, setData] = useState<AppData>(emptyData);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState("");
@@ -622,6 +629,27 @@ export default function SisApp() {
     setNotice("Hito de roadmap creado.");
   }
 
+
+  async function saveSystemIdea(form: HTMLFormElement) {
+    if (!client) return;
+    const fields = new FormData(form);
+    const { error } = await client.from("system_ideas").insert({
+      title: fields.get("title"),
+      description: fields.get("description"),
+      idea_type: fields.get("idea_type"),
+      status: "inbox",
+      entity_id: fields.get("entity_id") || null,
+      impact: Number(fields.get("impact") || 3),
+      effort: Number(fields.get("effort") || 3),
+      risks: fields.get("risks"),
+      provenance: "founder_confirmed",
+    });
+    if (error) throw error;
+    setSystemIdeaDialog(false);
+    await load(client);
+    setNotice("Idea de sistema capturada.");
+  }
+
   async function saveRelationship(form: HTMLFormElement) {
     if (!client || !relationshipEntityId) return;
     const fields = new FormData(form);
@@ -809,6 +837,7 @@ export default function SisApp() {
         <button className="home-action" onClick={() => setView("gallery")}><Images size={20} /><span>Galería</span></button>
         <button className="home-action" onClick={() => setView("missions")}><Target size={20} /><span>Objetivos</span></button>
         <button className="home-action" onClick={() => setView("roadmap")}><Layers3 size={20} /><span>Roadmap</span></button>
+        <button className="home-action" onClick={() => setView("sistemas")}><BrainCircuit size={20} /><span>Sistemas futuros</span></button>
         <button className="home-action" onClick={() => setView("ai_assistant")}><Sparkles size={20} /><span>Asistente</span></button>
       </div>
           {data.entities.length === 0 ? <div className="welcome-panel"><div className="welcome-copy"><span className="eyebrow">PRIMER INICIO</span><h2>La red empieza<br />a tomar forma aquí.</h2><p>Importa las entidades y metodologías del catálogo público como base revisable. Las relaciones y estrategias seguirán siendo tuyas para confirmar y editar.</p><button className="button button-dark" disabled={globalBusy} onClick={importInitialData}>{globalBusy ? "Preparando base…" : "Cargar base inicial"}<ArrowRight size={16} /></button></div><div className="welcome-mark"><div className="orbit orbit-one" /><div className="orbit orbit-two" /><Image src="/soverath-logo.png" alt="" width={160} height={160} /></div></div> : <>
@@ -858,6 +887,25 @@ export default function SisApp() {
             {data.missions.filter((mission) => mission.status === "completed").length === 0 && data.tasks.filter((task) => task.status === "done").length === 0 && (
               <div className="empty-state"><div className="empty-icon"><Layers3 size={20} /></div><b>Sin hitos todavía.</b><span>Completa objetivos o tareas para verlos aquí.</span></div>
             )}
+          </div>
+        </section>}
+
+{view === "sistemas" && <section className="view-stack">
+          <div className="section-heading"><div><span className="eyebrow">SISTEMAS FUTUROS</span><h3>Recopilación y planeación</h3></div><button className="button button-dark" onClick={() => setSystemIdeaDialog(true)}><Plus size={15} /> Nueva idea</button></div>
+          <div className="system-ideas-list">
+            {data.systemIdeas.length === 0 && <div className="empty-state"><div className="empty-icon"><BrainCircuit size={20} /></div><b>Sin ideas todavía.</b><span>Captura sistemas futuros para planearlos.</span></div>}
+            {data.systemIdeas.map((idea) => (
+              <article key={idea.id} className="system-idea-card">
+                <div className="system-idea-header"><b>{idea.title}</b><span className="status-pill">{titleCase(idea.status)}</span></div>
+                {idea.description && <p>{idea.description}</p>}
+                <div className="system-idea-meta">
+                  <span>Tipo: {titleCase(idea.idea_type)}</span>
+                  <span>Impacto: {idea.impact}/5</span>
+                  <span>Esfuerzo: {idea.effort}/5</span>
+                  {idea.entity_id && <span>Entidad: {data.entities.find((e) => e.id === idea.entity_id)?.name ?? "—"}</span>}
+                </div>
+              </article>
+            ))}
           </div>
         </section>}
 
@@ -960,6 +1008,7 @@ export default function SisApp() {
     {metricDialog && <Modal title="Definir métrica" onClose={() => setMetricDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetric)}><label>Nombre<input name="name" required placeholder="Ej. Pedidos entregados" autoFocus /></label><label>Qué mide<textarea name="description" rows={3} /></label><div className="form-grid"><label>Unidad<input name="unit" placeholder="pedidos, COP, %…" /></label><label>Frecuencia<select name="frequency" defaultValue="weekly"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option></select></label></div><div className="form-grid"><label>Meta (opcional)<input name="target_value" type="number" step="any" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setMetricDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar métrica</button></div></form></Modal>}
     {valueMetricId && <Modal title="Registrar valor" onClose={() => setValueMetricId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetricValue)}><label>Valor<input name="value" type="number" step="any" required autoFocus /></label><label>Fecha<input name="recorded_on" type="date" defaultValue={localDateKey()} required /></label><label>Contexto / nota<input name="note" /></label><div className="source-note modal-source"><ShieldCheck size={14} />Este valor se marcará como confirmado por Founder.</div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setValueMetricId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Check size={15} /> Guardar valor</button></div></form></Modal>}
     {roadmapDialog && <Modal title="Nuevo hito de roadmap" onClose={() => setRoadmapDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveRoadmapNode)}><label>Tipo<select name="node_type"><option value="objective">Objetivo</option><option value="goal">GOAL</option><option value="milestone">Hito</option></select></label><label>Título<input name="title" required autoFocus /></label><label>Descripción<textarea name="description" rows={3} /></label><div className="form-grid"><label>Estado<select name="status"><option value="planned">Planificado</option><option value="in_progress">En curso</option><option value="completed">Completado</option><option value="blocked">Bloqueado</option></select></label><label>Fecha<input name="occurred_on" type="date" /></label></div><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setRoadmapDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar hito</button></div></form></Modal>}
+{systemIdeaDialog && <Modal title="Nueva idea de sistema" onClose={() => setSystemIdeaDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveSystemIdea)}><label>Título<input name="title" required autoFocus /></label><label>Descripción<textarea name="description" rows={3} /></label><div className="form-grid"><label>Tipo<select name="idea_type"><option value="system">Sistema</option><option value="feature">Funcionalidad</option><option value="integration">Integración</option><option value="process">Proceso</option><option value="research">Investigación</option></select></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="form-grid"><label>Impacto (1-5)<input name="impact" type="number" min="1" max="5" defaultValue="3" /></label><label>Esfuerzo (1-5)<input name="effort" type="number" min="1" max="5" defaultValue="3" /></label></div><label>Riesgos / supuestos<textarea name="risks" rows={2} /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setSystemIdeaDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Capturar idea</button></div></form></Modal>}
 {accountDialog && <Modal title="Nueva cuenta interna" onClose={() => setAccountDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveAccount)}><label>Nombre<input name="name" required placeholder="Caja principal, Bancolombia…" autoFocus /></label><label>Tipo<select name="account_type"><option value="cash">Efectivo / caja</option><option value="bank">Cuenta bancaria</option><option value="digital_wallet">Billetera digital</option><option value="receivable">Por cobrar</option><option value="payable">Por pagar</option><option value="other">Otra cuenta</option></select></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><label>Saldo inicial COP<input name="opening_balance_cop" type="number" step="any" defaultValue="0" /></label><label>Propósito<input name="purpose" placeholder="Uso o alcance de la cuenta" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setAccountDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear cuenta</button></div></form></Modal>}
     {operationDialog && <Modal title="Registrar evento operativo" onClose={() => setOperationDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveOperation)}><label>Descripción del evento<input name="title" required placeholder="Ej. Compra de insumos" autoFocus /></label><div className="form-grid"><label>Tipo<select name="event_type"><option value="sale">Venta</option><option value="purchase">Compra</option><option value="expense">Gasto</option><option value="collection">Cobro</option><option value="payment">Pago</option><option value="transfer">Transferencia</option><option value="inventory">Inventario</option><option value="production">Producción</option><option value="logistics">Logística</option><option value="adjustment">Ajuste</option></select></label><label>Fecha<input name="occurred_on" type="date" defaultValue={localDateKey()} required /></label></div><div className="form-grid"><label>Importe COP<input name="amount_cop" inputMode="decimal" placeholder="0" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="form-grid"><label>Cuenta afectada<select name="account_id"><option value="">Sin cuenta</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label>Cuenta destino (transferencia)<select name="counter_account_id"><option value="">No aplica</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div><label>Efecto en saldo<select name="account_effect"><option value="none">No modificar saldo</option><option value="increase">Aumenta la cuenta</option><option value="decrease">Reduce la cuenta</option></select></label><div className="form-grid"><label>Contraparte<input name="counterparty" /></label><label>Medio de pago<input name="payment_method" placeholder="Efectivo, banco…" /></label></div><div className="form-grid"><label>Cantidad / unidades<input name="quantity" type="number" step="any" /></label><label>Unidad<input name="unit" placeholder="unidades, kg, cajas…" /></label></div><label>Referencia<input name="reference" placeholder="Pedido, lote, soporte…" /></label><label>Detalle / contexto<textarea name="notes" rows={3} /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setOperationDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar evento</button></div></form></Modal>}
     <button className="ai-floating-button" onClick={() => setView("ai_assistant")} aria-label="Abrir asistente AI" title="Abrir asistente AI"><Sparkles size={18} /><span>AI</span></button>
