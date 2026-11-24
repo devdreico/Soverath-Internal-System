@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 779fef57e28b93be02160f5733a62a0d9f48e77b)
 successfully downloaded text file (SHA: b079e8a019e71585240d47100a8b4238dcfeab79)
 successfully downloaded text file (SHA: 35c9af35e9faaf5d23fc992b0f745aae12db1ec6)
 successfully downloaded text file (SHA: 65ee8054b9c5174ce34660ebc01fc18724c40d2b)
@@ -194,6 +195,7 @@ export default function SisApp() {
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<View>("home");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [roadmapDialog, setRoadmapDialog] = useState(false);
   const [data, setData] = useState<AppData>(emptyData);
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState("");
@@ -601,6 +603,25 @@ export default function SisApp() {
     setEditRecord(null); await load(client); setNotice("Cambios guardados.");
   }
 
+
+  async function saveRoadmapNode(form: HTMLFormElement) {
+    if (!client) return;
+    const fields = new FormData(form);
+    const { error } = await client.from("roadmap_nodes").insert({
+      node_type: fields.get("node_type"),
+      title: fields.get("title"),
+      description: fields.get("description"),
+      status: fields.get("status"),
+      occurred_on: fields.get("occurred_on") || null,
+      entity_id: fields.get("entity_id") || null,
+      provenance: "founder_confirmed",
+    });
+    if (error) throw error;
+    setRoadmapDialog(false);
+    await load(client);
+    setNotice("Hito de roadmap creado.");
+  }
+
   async function saveRelationship(form: HTMLFormElement) {
     if (!client || !relationshipEntityId) return;
     const fields = new FormData(form);
@@ -803,8 +824,18 @@ export default function SisApp() {
         {view === "gallery" && <LibraryWorkspace area="gallery" entities={data.entities} projects={data.projects} />}
 
 {view === "roadmap" && <section className="view-stack">
-          <div className="section-heading"><div><span className="eyebrow">ROADMAP</span><h3>Hitos de Soverath</h3></div></div>
+          <div className="section-heading"><div><span className="eyebrow">ROADMAP</span><h3>Hitos de Soverath</h3></div><button className="button button-dark" onClick={() => setRoadmapDialog(true)}><Plus size={15} /> Añadir hito</button></div>
           <div className="roadmap-timeline">
+            {data.roadmapNodes.map((node) => (
+              <article key={node.id} className={`roadmap-node ${node.status}`}>
+                <span className="roadmap-dot" />
+                <div className="roadmap-copy">
+                  <b>{node.title}</b>
+                  <small>{titleCase(node.node_type)} · {node.occurred_on ? formatDate(node.occurred_on) : "Sin fecha"} · {titleCase(node.status)}</small>
+                  {node.description && <p>{node.description}</p>}
+                </div>
+              </article>
+            ))}
             {data.missions.filter((mission) => mission.status === "completed").map((mission) => (
               <article key={mission.id} className="roadmap-node completed">
                 <span className="roadmap-dot" />
@@ -928,7 +959,8 @@ export default function SisApp() {
     {projectMissionId && <Modal title="Nuevo proyecto" onClose={() => setProjectMissionId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveProject)}><label>Nombre del proyecto<input name="title" required autoFocus /></label><label>Descripción breve<textarea name="summary" rows={3} /></label><label>Fecha objetivo<input name="target_date" type="date" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setProjectMissionId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear proyecto</button></div></form></Modal>}
     {metricDialog && <Modal title="Definir métrica" onClose={() => setMetricDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetric)}><label>Nombre<input name="name" required placeholder="Ej. Pedidos entregados" autoFocus /></label><label>Qué mide<textarea name="description" rows={3} /></label><div className="form-grid"><label>Unidad<input name="unit" placeholder="pedidos, COP, %…" /></label><label>Frecuencia<select name="frequency" defaultValue="weekly"><option value="daily">Diaria</option><option value="weekly">Semanal</option><option value="monthly">Mensual</option><option value="quarterly">Trimestral</option><option value="annual">Anual</option></select></label></div><div className="form-grid"><label>Meta (opcional)<input name="target_value" type="number" step="any" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setMetricDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar métrica</button></div></form></Modal>}
     {valueMetricId && <Modal title="Registrar valor" onClose={() => setValueMetricId(null)}><form className="modal-form" onSubmit={(event) => runForm(event, saveMetricValue)}><label>Valor<input name="value" type="number" step="any" required autoFocus /></label><label>Fecha<input name="recorded_on" type="date" defaultValue={localDateKey()} required /></label><label>Contexto / nota<input name="note" /></label><div className="source-note modal-source"><ShieldCheck size={14} />Este valor se marcará como confirmado por Founder.</div><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setValueMetricId(null)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Check size={15} /> Guardar valor</button></div></form></Modal>}
-    {accountDialog && <Modal title="Nueva cuenta interna" onClose={() => setAccountDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveAccount)}><label>Nombre<input name="name" required placeholder="Caja principal, Bancolombia…" autoFocus /></label><label>Tipo<select name="account_type"><option value="cash">Efectivo / caja</option><option value="bank">Cuenta bancaria</option><option value="digital_wallet">Billetera digital</option><option value="receivable">Por cobrar</option><option value="payable">Por pagar</option><option value="other">Otra cuenta</option></select></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><label>Saldo inicial COP<input name="opening_balance_cop" type="number" step="any" defaultValue="0" /></label><label>Propósito<input name="purpose" placeholder="Uso o alcance de la cuenta" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setAccountDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear cuenta</button></div></form></Modal>}
+    {roadmapDialog && <Modal title="Nuevo hito de roadmap" onClose={() => setRoadmapDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveRoadmapNode)}><label>Tipo<select name="node_type"><option value="objective">Objetivo</option><option value="goal">GOAL</option><option value="milestone">Hito</option></select></label><label>Título<input name="title" required autoFocus /></label><label>Descripción<textarea name="description" rows={3} /></label><div className="form-grid"><label>Estado<select name="status"><option value="planned">Planificado</option><option value="in_progress">En curso</option><option value="completed">Completado</option><option value="blocked">Bloqueado</option></select></label><label>Fecha<input name="occurred_on" type="date" /></label></div><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setRoadmapDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar hito</button></div></form></Modal>}
+{accountDialog && <Modal title="Nueva cuenta interna" onClose={() => setAccountDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveAccount)}><label>Nombre<input name="name" required placeholder="Caja principal, Bancolombia…" autoFocus /></label><label>Tipo<select name="account_type"><option value="cash">Efectivo / caja</option><option value="bank">Cuenta bancaria</option><option value="digital_wallet">Billetera digital</option><option value="receivable">Por cobrar</option><option value="payable">Por pagar</option><option value="other">Otra cuenta</option></select></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label><label>Saldo inicial COP<input name="opening_balance_cop" type="number" step="any" defaultValue="0" /></label><label>Propósito<input name="purpose" placeholder="Uso o alcance de la cuenta" /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setAccountDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Crear cuenta</button></div></form></Modal>}
     {operationDialog && <Modal title="Registrar evento operativo" onClose={() => setOperationDialog(false)}><form className="modal-form" onSubmit={(event) => runForm(event, saveOperation)}><label>Descripción del evento<input name="title" required placeholder="Ej. Compra de insumos" autoFocus /></label><div className="form-grid"><label>Tipo<select name="event_type"><option value="sale">Venta</option><option value="purchase">Compra</option><option value="expense">Gasto</option><option value="collection">Cobro</option><option value="payment">Pago</option><option value="transfer">Transferencia</option><option value="inventory">Inventario</option><option value="production">Producción</option><option value="logistics">Logística</option><option value="adjustment">Ajuste</option></select></label><label>Fecha<input name="occurred_on" type="date" defaultValue={localDateKey()} required /></label></div><div className="form-grid"><label>Importe COP<input name="amount_cop" inputMode="decimal" placeholder="0" /></label><label>Entidad<select name="entity_id"><option value="">Red Soverath</option>{data.entities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label></div><div className="form-grid"><label>Cuenta afectada<select name="account_id"><option value="">Sin cuenta</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label>Cuenta destino (transferencia)<select name="counter_account_id"><option value="">No aplica</option>{data.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label></div><label>Efecto en saldo<select name="account_effect"><option value="none">No modificar saldo</option><option value="increase">Aumenta la cuenta</option><option value="decrease">Reduce la cuenta</option></select></label><div className="form-grid"><label>Contraparte<input name="counterparty" /></label><label>Medio de pago<input name="payment_method" placeholder="Efectivo, banco…" /></label></div><div className="form-grid"><label>Cantidad / unidades<input name="quantity" type="number" step="any" /></label><label>Unidad<input name="unit" placeholder="unidades, kg, cajas…" /></label></div><label>Referencia<input name="reference" placeholder="Pedido, lote, soporte…" /></label><label>Detalle / contexto<textarea name="notes" rows={3} /></label><div className="modal-actions"><button type="button" className="button button-outline" onClick={() => setOperationDialog(false)}>Cancelar</button><button className="button button-dark" disabled={globalBusy}><Plus size={15} /> Guardar evento</button></div></form></Modal>}
     <button className="ai-floating-button" onClick={() => setView("ai_assistant")} aria-label="Abrir asistente AI" title="Abrir asistente AI"><Sparkles size={18} /><span>AI</span></button>
   </div>;
