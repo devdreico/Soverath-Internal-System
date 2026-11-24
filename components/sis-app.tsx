@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 35c9af35e9faaf5d23fc992b0f745aae12db1ec6)
 successfully downloaded text file (SHA: 65ee8054b9c5174ce34660ebc01fc18724c40d2b)
 successfully downloaded text file (SHA: 561b03ef113f46edd771b0f6d925b7be9e854692)
 "use client";
@@ -761,7 +762,7 @@ export default function SisApp() {
       </div>
     </aside>
 
-    <main className="main-area">
+    <main id="main-content" className="main-area">
       <header className="topbar">
         <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label="Abrir menú">☰</button>
         <div className="breadcrumb"><span>SOVERATH</span><span className="crumb-separator">/</span><b>{currentCopy.title.toLocaleUpperCase("es")}</b></div>
