@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: e6c7615e4e2a0dbc1e6b9da3fc011f3364fb8349)
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { getSupabase } from "@/lib/supabase";
@@ -375,6 +376,22 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+
+const aiRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+function checkAiRateLimit(key: string, limit = 30, windowMs = 60_000) {
+  const now = Date.now();
+  const current = aiRateLimits.get(key);
+  if (!current || now > current.resetAt) {
+    aiRateLimits.set(key, { count: 1, resetAt: now + windowMs });
+    return true;
+  }
+  if (current.count >= limit) return false;
+  current.count += 1;
+  aiRateLimits.set(key, current);
+  return true;
+}
+
 export async function POST(request: Request) {
   const authorization = request.headers.get("authorization") ?? "";
   const accessToken = authorization.match(/^Bearer\s+([^\s]+)$/i)?.[1];
@@ -396,6 +413,8 @@ export async function POST(request: Request) {
   if (claimsError || !claims?.sub || claims.sub !== founderId || claims.aal !== "aal2") {
     return jsonError("La sesión no está autorizada o requiere verificación MFA AAL2.", 401);
   }
+
+  if (!checkAiRateLimit(claims.sub)) return jsonError("Demasiadas solicitudes al asistente. Espera un momento e inténtalo de nuevo.", 429);
 
   let rawPayload: string;
   try {
