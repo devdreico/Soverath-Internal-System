@@ -19,9 +19,16 @@ create table if not exists public.roadmap_nodes (
 
 alter table public.roadmap_nodes enable row level security;
 
-create policy roadmap_nodes_founder_all
-on public.roadmap_nodes
-for all
-to authenticated
-using ((select auth.uid()) = (select (current_setting('request.jwt.claims', true)::json ->> 'sub')::uuid))
-with check ((select auth.uid()) = (select (current_setting('request.jwt.claims', true)::json ->> 'sub')::uuid));
+create policy roadmap_nodes_founder_all on public.roadmap_nodes
+for all to authenticated
+using ((select private.is_founder()))
+with check ((select private.is_founder()));
+
+create policy roadmap_nodes_require_aal2 on public.roadmap_nodes
+as restrictive for all to authenticated
+using ((select auth.jwt() ->> 'aal') = 'aal2')
+with check ((select auth.jwt() ->> 'aal') = 'aal2');
+
+create trigger roadmap_nodes_touch_updated_at
+before update on public.roadmap_nodes
+for each row execute function private.touch_updated_at();
