@@ -1,4 +1,3 @@
-successfully downloaded text file (SHA: 448e2620cd935866427ed84c1daaff452ba1a863)
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "@fontsource/montserrat/400.css";
