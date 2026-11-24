@@ -1,6 +1,3 @@
-successfully downloaded text file (SHA: 565faa2b5d7762626cad0e02a88f90618c46f255)
-successfully downloaded text file (SHA: e71cc6c51aa3b3e6eb8936666b317675c326dbf1)
-successfully downloaded text file (SHA: e6c7615e4e2a0dbc1e6b9da3fc011f3364fb8349)
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import type { getSupabase } from "@/lib/supabase";
