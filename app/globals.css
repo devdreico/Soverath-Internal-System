@@ -1,3 +1,4 @@
+successfully downloaded text file (SHA: 76c6ead85eb8f0d795e803cb4344730a9ce88444)
 successfully downloaded text file (SHA: 888cc72aac2ce84a2cf285a83e92967e9d5a1316)
 successfully downloaded text file (SHA: d503e1830194fcb85f3f67c7abb8c7be5132ac06)
 successfully downloaded text file (SHA: 617092cd1abe8d7e4980670b70a48ad4e13d5046)
@@ -787,3 +788,6 @@ input::placeholder, textarea::placeholder { color: #aaa9a4; }
 .system-idea-card p { margin: 8px 0; color: var(--muted, #6b7280); }
 .system-idea-meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.85rem; color: var(--muted, #6b7280); }
 .status-pill { padding: 2px 8px; border-radius: 999px; background: var(--surface-alt, #f3f4f6); font-size: 0.75rem; font-weight: 600; }
+
+
+.system-idea-actions { margin-top: 12px; display: flex; gap: 8px; }
